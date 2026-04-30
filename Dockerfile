@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy application code
-COPY src/ ./src/
+
 
 
 # Set environment variables
