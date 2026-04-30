@@ -1,0 +1,28 @@
+{
+  "name": "sagpt-backend",
+  "version": "1.0.0",
+  "description": "SAGPT - One-stop Global Expansion Service Platform for Chinese Companies",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "init-db": "node init-db.js"
+  },
+  "keywords": [
+    "sagpt",
+    "global-expansion",
+    "volcengine",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "sqlite3": "^5.1.7",
+    "winston": "^3.11.0",
+    "dotenv": "^16.4.5"
+  }
+}

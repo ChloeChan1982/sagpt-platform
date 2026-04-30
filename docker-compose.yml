@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  sagpt-backend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - VOLCENGINE_API_KEY=${VOLCENGINE_API_KEY}
+      - VOLCENGINE_API_BASE_URL=${VOLCENGINE_API_BASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "http.get('http://localhost:3000/api/v1/health', res => console.log(res.statusCode))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
