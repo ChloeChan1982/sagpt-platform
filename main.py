@@ -11,8 +11,7 @@ settings = get_settings()
 
 # Create tables
 try:
-   init_db()
-    Base.metadata.create_all(bind=engine)
+    init_db()
 except Exception as e:
     print(f"Database init warning: {e}")
 
