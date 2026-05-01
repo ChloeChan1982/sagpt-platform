@@ -4,14 +4,14 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from app.core.config import get_settings
-from app.db.database import engine, Base, init_pgvector
+from app.db.database import init_db, Base, engine
 from app.routers import demands, chat, experts, providers
 
 settings = get_settings()
 
 # Create tables
 try:
-    init_pgvector()
+   init_db()
     Base.metadata.create_all(bind=engine)
 except Exception as e:
     print(f"Database init warning: {e}")
