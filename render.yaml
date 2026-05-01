@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: sagpt-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sagpt-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # 用户需要在 Render Dashboard 手动填入
+      - key: AI_PROVIDER
+        value: siliconflow
+      - key: OPENAI_BASE_URL
+        value: https://api.siliconflow.cn/v1
+      - key: OPENAI_MODEL
+        value: deepseek-ai/DeepSeek-V2.5
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-large-zh-v1.5
+      - key: USE_FREE_MODEL_TIER
+        value: "true"
+      - key: FREE_MODEL
+        value: Qwen/Qwen2.5-7B-Instruct
+      - key: ALLOWED_ORIGINS
+        value: https://sagpt.com,https://www.sagpt.com,http://localhost:3000,http://localhost:5173,https://readdy.ai
+      - key: API_SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    autoDeploy: true
+
+  # Optional: If you want to add a custom domain later
+  # Uncomment and modify:
+  # - type: web
+  #   name: sagpt-api-custom
+  #   domain: api.sagpt.com
+
+databases:
+  - name: sagpt-db
+    databaseName: sagpt
+    user: sagpt
+    plan: free  # Render free PostgreSQL (limited, enough for testing)
+    # Note: Render free PostgreSQL has limitations. 
+    # For production, upgrade to starter plan ($7/month)
+    # Or use Neon PostgreSQL free tier (see README for alternative)

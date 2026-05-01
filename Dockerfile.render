@@ -6,17 +6,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
+# Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 8000
+# Expose Render's expected port
+EXPOSE 10000
 
-# Run migrations and start server
-CMD ["sh", "-c", "python -c \"from app.db.database import init_pgvector, Base, engine; init_pgvector(); Base.metadata.create_all(bind=engine)\" && uvicorn main:app --host 0.0.0.0 --port 8000"]
+# Initialize database tables on startup and start server
+CMD ["sh", "-c", "python scripts/init_db.py && uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]
