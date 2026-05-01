@@ -1,35 +1,24 @@
-from sqlalchemy import create_engine, event, text as sa_text
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.core.config import get_settings
+import os
 
-settings = get_settings()
-
-# Support both local Docker and cloud PostgreSQL (Render/Neon/Supabase)
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,
-)
+# 使用 SQLite（Render 免费版没有 PostgreSQL）
+# 生产环境可以升级到 PostgreSQL
+DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./sagpt.db")
+if DB_PATH.startswith("postgresql"):
+    # 如果有 PostgreSQL，使用它
+    engine = create_engine(DB_PATH, pool_pre_ping=True)
+else:
+    # 否则用 SQLite（本地文件）
+    engine = create_engine(DB_PATH, connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def init_db():
-    """Initialize database - create tables if not exist"""
+    """Initialize database - create tables"""
     try:
-        # Try to enable pgvector if available (Neon/Supabase support it)
-        with engine.connect() as conn:
-            try:
-                conn.execute(sa_text("CREATE EXTENSION IF NOT EXISTS vector"))
-                conn.commit()
-                print("[DB] pgvector extension enabled")
-            except Exception:
-                print("[DB] pgvector not available, using JSONB for embeddings")
-        
-        # Create all tables
         Base.metadata.create_all(bind=engine)
         print("[DB] Tables created successfully")
     except Exception as e:
