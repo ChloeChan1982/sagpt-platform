@@ -2,13 +2,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
+import os
 
-from app.core.config import get_settings
+from app.core.config import get_settings, PROVIDER_PRESETS
 from app.db.database import init_db, Base, engine
 from app.routers import demands, chat, experts, providers
 
 settings = get_settings()
 
+# Create tables
 try:
     init_db()
 except Exception as e:
@@ -22,6 +24,7 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
+# CORS - allow Readdy frontend
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
 app.add_middleware(
     CORSMiddleware,
@@ -31,19 +34,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Health check - 直接读取环境变量，绕过配置缓存
 @app.get("/health")
 async def health_check():
+    # 直接强制读取，看看到底有没有
+    raw_key = os.environ.get("OPENAI_API_KEY", "")
+    has_key = len(raw_key) > 10  # 只要长度超过10就认为有
     return {
         "status": "ok",
         "service": settings.APP_NAME,
-        "ai_available": bool(settings.OPENAI_API_KEY)
+        "ai_available": has_key,
+        "key_length": len(raw_key),  # 显示长度方便调试
+        "key_prefix": raw_key[:10] if raw_key else "EMPTY",  # 显示前缀确认
     }
 
+# API routes
 app.include_router(demands.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(experts.router, prefix="/api")
 app.include_router(providers.router, prefix="/api")
 
+# Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
