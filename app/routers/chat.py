@@ -1,85 +1,53 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Optional
 import json
-import asyncio
+import os
+from datetime import datetime
 
 from app.db.database import get_db
 from app.models import schemas
 from app.models.models import ChatSession
-from app.services.ai_service import get_llm_service
+from app.services.ai_service import LLMService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-async def generate_chat_stream(
-    message: str,
-    history: list,
-    session_id: Optional[str],
-    db: Session
-):
-    """SSE stream for chat responses"""
-    llm = get_llm_service()
+async def generate_chat_stream(message: str, history: list, session_id: str, db):
+    # 每次请求都重新创建 LLMService（绕过 singleton 缓存问题）
+    llm = LLMService()
     
-    full_response = ""
-    chunk_id = f"msg_{id(message) % 10000000}"
+    if not llm.client:
+        print(f"[CHAT] LLM client not available. key_len={len(llm.api_key)}")
+        yield "[AI Service temporarily unavailable. API Key not configured or invalid.]"
+        return
     
-    async for chunk in llm.chat_stream(message, history):
-        full_response += chunk
-        data = json.dumps({
-            "chunk": chunk,
-            "done": False,
-            "message_id": chunk_id
-        })
-        yield f"data: {data}\n\n"
+    messages = [{"role": "system", "content": llm.__class__.__name__}]
+    # 重新加载 system prompt
+    from app.services.ai_service import SAGPT_SYSTEM_PROMPT
+    messages = [{"role": "system", "content": SAGPT_SYSTEM_PROMPT}]
     
-    # Save to session
-    if session_id:
-        session = db.query(ChatSession).filter(
-            ChatSession.fingerprint == session_id
-        ).order_by(ChatSession.created_at.desc()).first()
-        
-        if session:
-            messages = session.messages or []
-            messages.append({"role": "user", "content": message, "timestamp": str(datetime.now())})
-            messages.append({"role": "assistant", "content": full_response, "timestamp": str(datetime.now())})
-            session.messages = messages[-50:]  # keep last 50
-            db.commit()
-        else:
-            new_session = ChatSession(
-                fingerprint=session_id,
-                messages=[
-                    {"role": "user", "content": message, "timestamp": str(datetime.now())},
-                    {"role": "assistant", "content": full_response, "timestamp": str(datetime.now())}
-                ]
-            )
-            db.add(new_session)
-            db.commit()
+    for msg in history[-10:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": message})
     
-    # Send done signal
-    data = json.dumps({"chunk": "", "done": True, "message_id": chunk_id})
-    yield f"data: {data}\n\n"
-
-from datetime import datetime
+    model = llm._get_model_for_request(message, task_type="chat")
+    
+    try:
+        stream = llm.client.chat.completions.create(
+            model=model, messages=messages, stream=True, temperature=0.7, max_tokens=1500
+        )
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        print(f"[CHAT] Error: {e}")
+        yield f"[AI Error: {str(e)}]"
 
 @router.post("", response_class=StreamingResponse)
 async def chat_stream(
     request: schemas.ChatRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    AI chat with streaming response (SSE).
-    
-    Client connects with:
-    ```javascript
-    const eventSource = new EventSource('/api/chat?message=...&fingerprint=...');
-    eventSource.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.done) { eventSource.close(); }
-      else { appendText(data.chunk); }
-    };
-    ```
-    """
     history = []
     if request.history:
         history = [{"role": m.role, "content": m.content} for m in request.history]
@@ -99,37 +67,51 @@ async def chat_message(
     request: schemas.ChatRequest,
     db: Session = Depends(get_db)
 ):
-    """Non-streaming chat for simple requests"""
-    llm = get_llm_service()
+    # 每次请求都重新创建 LLMService
+    llm = LLMService()
+    
+    if not llm.client:
+        return schemas.ChatStreamChunk(
+            chunk=f"[AI unavailable. Key length: {len(llm.api_key)}. Please check OPENAI_API_KEY env var.]",
+            done=True
+        )
     
     history = []
     if request.history:
         history = [{"role": m.role, "content": m.content} for m in request.history]
     
-    full_text = ""
-    async for chunk in llm.chat_stream(request.message, history):
-        full_text += chunk
+    messages = [{"role": "system", "content": llm.__class__.__name__}]
+    from app.services.ai_service import SAGPT_SYSTEM_PROMPT
+    messages = [{"role": "system", "content": SAGPT_SYSTEM_PROMPT}]
     
-    return schemas.ChatStreamChunk(
-        chunk=full_text,
-        done=True,
-        message_id=f"msg_{id(request.message) % 10000000}"
-    )
+    for msg in history[-10:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": request.message})
+    
+    model = llm._get_model_for_request(request.message, task_type="chat")
+    
+    try:
+        stream = llm.client.chat.completions.create(
+            model=model, messages=messages, stream=True, temperature=0.7, max_tokens=1500
+        )
+        full_text = ""
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                full_text += chunk.choices[0].delta.content
+        return schemas.ChatStreamChunk(chunk=full_text, done=True)
+    except Exception as e:
+        return schemas.ChatStreamChunk(chunk=f"[AI Error: {str(e)}]", done=True)
 
-@router.get("/session/{fingerprint}", response_model=schemas.ChatSessionResponse)
+@router.get("/session/{fingerprint}")
 async def get_chat_session(fingerprint: str, db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(
         ChatSession.fingerprint == fingerprint
     ).order_by(ChatSession.created_at.desc()).first()
     
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        return {"error": "Session not found"}
     
-    return schemas.ChatSessionResponse(
-        session_id=session.id,
-        messages=[
-            schemas.ChatMessage(role=m["role"], content=m["content"])
-            for m in (session.messages or [])
-        ],
-        created_at=session.created_at
-    )
+    return {
+        "session_id": str(session.id),
+        "messages": session.messages or []
+    }
