@@ -34,13 +34,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check - 直接读取环境变量，绕过配置缓存
+# Health check
 @app.get("/health")
 async def health_check():
     return {
         "status": "ok",
         "service": settings.APP_NAME,
-        "ai_available": True,  # 直接返回 True
+        "ai_available": True,
+    }
+
+# Debug endpoint - check environment variables
+@app.get("/debug")
+async def debug():
+    key = os.getenv("OPENAI_API_KEY", "")
+    return {
+        "env_has_key": "OPENAI_API_KEY" in os.environ,
+        "key_length": len(key),
+        "key_prefix": key[:5] if key else "NONE",
+        "all_env_vars": sorted(os.environ.keys()),
     }
 
 # API routes
