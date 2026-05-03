@@ -2,7 +2,6 @@ import os
 import re
 from typing import List, Optional, AsyncGenerator
 from sqlalchemy.orm import Session
-from app.core.config import get_settings, PROVIDER_PRESETS
 from app.models.models import Expert, Demand
 from app.models.schemas import MatchPreview
 
@@ -13,7 +12,37 @@ except ImportError:
     HAS_OPENAI = False
     openai = None
 
-settings = get_settings()
+# Provider presets
+PROVIDER_PRESETS = {
+    "siliconflow": {
+        "base_url": "https://api.siliconflow.cn/v1",
+        "chat_model": "deepseek-ai/DeepSeek-V2.5",
+        "embedding_model": "BAAI/bge-large-zh-v1.5",
+        "free_model": "Qwen/Qwen2.5-7B-Instruct",
+        "use_free_tier": True,
+    },
+    "deepseek": {
+        "base_url": "https://api.deepseek.com/v1",
+        "chat_model": "deepseek-chat",
+        "embedding_model": "text-embedding-3-large",
+        "free_model": None,
+        "use_free_tier": False,
+    },
+    "aliyun": {
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "chat_model": "qwen-plus",
+        "embedding_model": "text-embedding-v3",
+        "free_model": None,
+        "use_free_tier": False,
+    },
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "chat_model": "gpt-4o",
+        "embedding_model": "text-embedding-3-large",
+        "free_model": None,
+        "use_free_tier": False,
+    },
+}
 
 SAGPT_SYSTEM_PROMPT = """You are SAGPT AI Assistant, an expert global expansion consultant specializing in helping Chinese enterprises expand overseas.
 
@@ -38,7 +67,6 @@ Rules:
 
 Current date: 2026-04-30"""
 
-# Simple FAQ patterns that can be handled by free small models
 SIMPLE_PATTERNS = [
     r'^(hi|hello|hey|你好|您好)',
     r'^(what is|what\'s|什么是|介绍).*(sagpt|your service|你们|平台)',
@@ -59,25 +87,28 @@ def is_simple_query(message: str) -> bool:
 
 class LLMService:
     def __init__(self):
-        self.provider = settings.AI_PROVIDER
-        self.api_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY", "")
+        # 直接从环境变量读取，不依赖任何缓存的配置对象
+        self.provider = os.getenv("AI_PROVIDER", "siliconflow")
+        self.api_key = os.getenv("OPENAI_API_KEY", "")
         
         preset = PROVIDER_PRESETS.get(self.provider, {})
-        self.base_url = settings.OPENAI_BASE_URL or preset.get("base_url", "https://api.siliconflow.cn/v1")
-        self.model = settings.OPENAI_MODEL or preset.get("chat_model", "deepseek-ai/DeepSeek-V2.5")
-        self.embedding_model = settings.EMBEDDING_MODEL or preset.get("embedding_model", "BAAI/bge-large-zh-v1.5")
-        self.free_model = preset.get("free_model") or settings.FREE_MODEL
-        self.use_free_tier = settings.USE_FREE_MODEL_TIER and preset.get("use_free_tier", False)
+        self.base_url = os.getenv("OPENAI_BASE_URL", preset.get("base_url", "https://api.siliconflow.cn/v1"))
+        self.model = os.getenv("OPENAI_MODEL", preset.get("chat_model", "deepseek-ai/DeepSeek-V2.5"))
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", preset.get("embedding_model", "BAAI/bge-large-zh-v1.5"))
+        self.free_model = preset.get("free_model") or os.getenv("FREE_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+        use_free_env = os.getenv("USE_FREE_MODEL_TIER", "true").lower() == "true"
+        self.use_free_tier = use_free_env and preset.get("use_free_tier", False)
         
+        # 初始化 OpenAI 客户端
         self.client = None
-        if HAS_OPENAI and self.api_key:
+        if HAS_OPENAI and self.api_key and len(self.api_key) > 10:
             try:
                 self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
-                print(f"[LLM] Initialized: provider={self.provider}, model={self.model}")
+                print(f"[LLM] Initialized: provider={self.provider}, model={self.model}, key_length={len(self.api_key)}")
             except Exception as e:
                 print(f"[LLM] Init failed: {e}")
         else:
-            print(f"[LLM] Warning: No client. HAS_OPENAI={HAS_OPENAI}, key_exists={bool(self.api_key)}")
+            print(f"[LLM] Warning: No client. HAS_OPENAI={HAS_OPENAI}, key_exists={bool(self.api_key)}, key_len={len(self.api_key) if self.api_key else 0}")
     
     def _get_model_for_request(self, user_message: str = "", task_type: str = "chat") -> str:
         if task_type == "embedding":
@@ -173,7 +204,6 @@ class MatchingService:
         if not candidates:
             return []
         
-        # Generate embedding if not exists
         if demand.description_embedding is None:
             embedding = await self.llm.get_embedding(
                 f"Country: {demand.target_country}. Industry: {demand.industry}. "
@@ -183,7 +213,6 @@ class MatchingService:
                 demand.description_embedding = embedding
                 db.commit()
         
-        # Score candidates
         scored = []
         for expert in candidates:
             score = self._calculate_match_score(demand, expert)
@@ -213,7 +242,6 @@ class MatchingService:
     def _calculate_match_score(self, demand: Demand, expert: Expert) -> float:
         scores = []
         
-        # Country match (weight: 0.4)
         country_score = 0.0
         if demand.target_country.lower() == expert.country.lower():
             country_score = 1.0
@@ -225,7 +253,6 @@ class MatchingService:
             country_score = 0.6
         scores.append(country_score * 0.4)
         
-        # Vector similarity (weight: 0.3) - using JSONB embeddings with numpy
         vector_score = 0.0
         if demand.description_embedding and expert.profile_embedding:
             try:
@@ -238,7 +265,6 @@ class MatchingService:
                 vector_score = 0.0
         scores.append(vector_score * 0.3)
         
-        # Specialty overlap (weight: 0.2)
         specialty_score = 0.0
         demand_keywords = set((demand.industry + " " + demand.scenario).lower().split())
         expert_specialties = set(" ".join(expert.specialties or []).lower().split())
@@ -247,14 +273,12 @@ class MatchingService:
             specialty_score = min(1.0, overlap / 3.0)
         scores.append(specialty_score * 0.2)
         
-        # Experience bonus (weight: 0.1)
         exp_score = min(1.0, (expert.experience_years or 0) / 20.0)
         scores.append(exp_score * 0.1)
         
         return sum(scores)
     
     async def find_matches_vector_only(self, db: Session, demand: Demand, top_k: int = 5) -> List[Expert]:
-        """In-memory vector similarity matching using JSONB embeddings"""
         if demand.description_embedding is None:
             return []
         
