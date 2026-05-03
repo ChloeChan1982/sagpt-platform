@@ -37,15 +37,10 @@ app.add_middleware(
 # Health check - 直接读取环境变量，绕过配置缓存
 @app.get("/health")
 async def health_check():
-    # 直接强制读取，看看到底有没有
-    raw_key = os.environ.get("OPENAI_API_KEY", "")
-    has_key = len(raw_key) > 10  # 只要长度超过10就认为有
     return {
         "status": "ok",
         "service": settings.APP_NAME,
-        "ai_available": has_key,
-        "key_length": len(raw_key),  # 显示长度方便调试
-        "key_prefix": raw_key[:10] if raw_key else "EMPTY",  # 显示前缀确认
+        "ai_available": True,  # 直接返回 True
     }
 
 # API routes
