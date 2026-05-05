@@ -13,7 +13,7 @@ COPY . .
 ENV OPENAI_API_KEY=sk-jagttstdbyrmtchmrshfumjmxnpjcixarvkeutsycvzzyamo
 ENV AI_PROVIDER=siliconflow
 ENV OPENAI_BASE_URL=https://cloud.siliconflow.cn/me/account/ak
-ENV OPENAI_MODEL=deepseek-ai/DeepSeek-V2.5
+ENV OPENAI_MODEL=deepseek-ai/DeepSeek-V4-Flash
 ENV USE_FREE_MODEL_TIER=true
 
 EXPOSE 10000
