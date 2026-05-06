@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -19,7 +18,7 @@ async def chat_message(
     
     if not llm.client:
         return {
-            "chunk": f"[AI unavailable. Key length: {len(llm.api_key)}.]",
+            "chunk": "[AI unavailable]",
             "done": True,
             "message_id": "error"
         }
@@ -33,32 +32,22 @@ async def chat_message(
     messages.append({"role": "user", "content": request.message})
     
     try:
+        # 非流式调用（更稳定）
         response = llm.client.chat.completions.create(
             model=llm.model,
             messages=messages,
             temperature=0.7,
-            max_tokens=1500
+            max_tokens=1500,
+            stream=False  # 关键：不用流式
         )
         
-        content = ""
-        if hasattr(response, 'choices') and response.choices:
-            choice = response.choices[0]
-            if hasattr(choice, 'message') and choice.message:
-                if hasattr(choice.message, 'content'):
-                    content = choice.message.content
-                else:
-                    content = str(choice.message)
-            else:
-                content = str(choice)
-        elif isinstance(response, str):
-            content = response
-        else:
-            content = str(response)
+        # 直接提取内容
+        content = response.choices[0].message.content
         
         return {
             "chunk": content,
             "done": True,
-            "message_id": f"msg_{hash(request.message) % 10000000}"
+            "message_id": "msg_ok"
         }
     except Exception as e:
         return {
