@@ -16,7 +16,7 @@ except ImportError:
 PROVIDER_PRESETS = {
     "siliconflow": {
         "base_url": "https://api.siliconflow.cn/v1",
-        "chat_model": "deepseek-ai/DeepSeek-V4-Flash",
+        "chat_model": "Qwen/Qwen2.5-72B-Instruct",
         "embedding_model": "BAAI/bge-large-zh-v1.5",
         "free_model": "Qwen/Qwen2.5-7B-Instruct",
         "use_free_tier": True,
@@ -138,7 +138,7 @@ class LLMService:
         
         preset = PROVIDER_PRESETS.get(self.provider, {})
         self.base_url = os.getenv("OPENAI_BASE_URL", preset.get("base_url", "https://api.siliconflow.cn/v1"))
-        self.model = os.getenv("OPENAI_MODEL", preset.get("chat_model", "deepseek-ai/DeepSeek-V4-Flash"))
+        self.model = os.getenv("OPENAI_MODEL", preset.get("chat_model", "Qwen/Qwen2.5-72B-Instruct"))
         self.embedding_model = os.getenv("EMBEDDING_MODEL", preset.get("embedding_model", "BAAI/bge-large-zh-v1.5"))
         self.free_model = preset.get("free_model") or os.getenv("FREE_MODEL", "Qwen/Qwen2.5-7B-Instruct")
         use_free_env = os.getenv("USE_FREE_MODEL_TIER", "true").lower() == "true"
