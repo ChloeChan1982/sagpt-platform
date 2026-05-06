@@ -60,7 +60,7 @@ async def submit_demand(
     matches = await matcher.find_matches(db, demand, top_k=5, min_score=0.2)
     
     # Update demand with match results
-    demand.matched_expert_ids = [m.expert_id for m in matches[:3]]
+   demand.matched_expert_ids = [str(m.expert_id) for m in matches[:3]]
     demand.ai_match_score = matches[0].match_score if matches else 0.0
     demand.status = "matching"
     db.commit()
@@ -115,7 +115,7 @@ async def rematch_demand(
     matcher = get_matching_service()
     matches = await matcher.find_matches(db, demand, top_k=5)
     
-    demand.matched_expert_ids = [m.expert_id for m in matches[:3]]
+   demand.matched_expert_ids = [str(m.expert_id) for m in matches[:3]]
     demand.status = "matching"
     db.commit()
     
