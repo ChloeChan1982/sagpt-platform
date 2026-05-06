@@ -16,7 +16,7 @@ except ImportError:
 PROVIDER_PRESETS = {
     "siliconflow": {
         "base_url": "https://api.siliconflow.cn/v1",
-        "chat_model": "deepseek-ai/DeepSeek-V2.5",
+        "chat_model": "deepseek-ai/DeepSeek-V4-Flash",
         "embedding_model": "BAAI/bge-large-zh-v1.5",
         "free_model": "Qwen/Qwen2.5-7B-Instruct",
         "use_free_tier": True,
@@ -133,19 +133,17 @@ def is_simple_query(message: str) -> bool:
 
 class LLMService:
     def __init__(self):
-        # 直接从环境变量读取，不依赖任何缓存的配置对象
         self.provider = os.getenv("AI_PROVIDER", "siliconflow")
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         
         preset = PROVIDER_PRESETS.get(self.provider, {})
         self.base_url = os.getenv("OPENAI_BASE_URL", preset.get("base_url", "https://api.siliconflow.cn/v1"))
-        self.model = os.getenv("OPENAI_MODEL", preset.get("chat_model", "deepseek-ai/DeepSeek-V2.5"))
+        self.model = os.getenv("OPENAI_MODEL", preset.get("chat_model", "deepseek-ai/DeepSeek-V4-Flash"))
         self.embedding_model = os.getenv("EMBEDDING_MODEL", preset.get("embedding_model", "BAAI/bge-large-zh-v1.5"))
         self.free_model = preset.get("free_model") or os.getenv("FREE_MODEL", "Qwen/Qwen2.5-7B-Instruct")
         use_free_env = os.getenv("USE_FREE_MODEL_TIER", "true").lower() == "true"
         self.use_free_tier = use_free_env and preset.get("use_free_tier", False)
         
-        # 初始化 OpenAI 客户端
         self.client = None
         if HAS_OPENAI and self.api_key and len(self.api_key) > 10:
             try:
