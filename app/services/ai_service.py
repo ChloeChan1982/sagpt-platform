@@ -286,14 +286,58 @@ class MatchingService:
     def _calculate_match_score(self, demand: Demand, expert: Expert) -> float:
         scores = []
         
+                # Country match (支持中英文)
         country_score = 0.0
-        if demand.target_country.lower() == expert.country.lower():
+        demand_country = demand.target_country.lower()
+        expert_country = expert.country.lower()
+        
+        # 直接匹配（英文↔英文）
+        if demand_country == expert_country:
             country_score = 1.0
-        elif expert.country.lower() in ["uae", "saudi arabia", "qatar", "bahrain", "oman"] and \
-             demand.target_country.lower() in ["uae", "saudi arabia", "qatar", "bahrain", "oman"]:
+        # 中文→英文映射
+        elif demand_country in ["沙特阿拉伯", "沙特"] and expert_country in ["saudi arabia", "saudi"]:
+            country_score = 1.0
+        elif demand_country in ["阿联酋", "迪拜"] and expert_country in ["uae", "dubai"]:
+            country_score = 1.0
+        elif demand_country in ["卡塔尔"] and expert_country == "qatar":
+            country_score = 1.0
+        elif demand_country in ["巴林"] and expert_country == "bahrain":
+            country_score = 1.0
+        elif demand_country in ["阿曼"] and expert_country == "oman":
+            country_score = 1.0
+        elif demand_country in ["新加坡"] and expert_country == "singapore":
+            country_score = 1.0
+        elif demand_country in ["马来西亚"] and expert_country == "malaysia":
+            country_score = 1.0
+        elif demand_country in ["印度尼西亚", "印尼"] and expert_country == "indonesia":
+            country_score = 1.0
+        elif demand_country in ["美国"] and expert_country == "united states":
+            country_score = 1.0
+        elif demand_country in ["英国"] and expert_country == "united kingdom":
+            country_score = 1.0
+        elif demand_country in ["德国"] and expert_country == "germany":
+            country_score = 1.0
+        elif demand_country in ["法国"] and expert_country == "france":
+            country_score = 1.0
+        elif demand_country in ["土耳其"] and expert_country == "turkey":
+            country_score = 1.0
+        elif demand_country in ["日本"] and expert_country == "japan":
+            country_score = 1.0
+        elif demand_country in ["印度"] and expert_country == "india":
+            country_score = 1.0
+        elif demand_country in ["墨西哥"] and expert_country == "mexico":
+            country_score = 1.0
+        elif demand_country in ["尼日利亚"] and expert_country == "nigeria":
+            country_score = 1.0
+        elif demand_country in ["塞尔维亚"] and expert_country == "serbia":
+            country_score = 1.0
+        # GCC 区域相似性
+        elif expert_country in ["uae", "saudi arabia", "qatar", "bahrain", "oman"] and \
+             demand_country in ["uae", "saudi arabia", "qatar", "bahrain", "oman", "阿联酋", "沙特阿拉伯", "卡塔尔", "巴林", "阿曼"]:
             country_score = 0.7
-        elif expert.country.lower() in ["singapore", "malaysia", "indonesia", "thailand"] and \
-             demand.target_country.lower() in ["singapore", "malaysia", "indonesia", "thailand", "vietnam", "philippines"]:
+        # SEA 区域相似性
+        elif expert_country in ["singapore", "malaysia", "indonesia", "thailand"] and \
+             demand_country in ["singapore", "malaysia", "indonesia", "thailand", "vietnam", "philippines", "新加坡", "马来西亚", "印度尼西亚", "印尼", "泰国", "越南", "菲律宾"]:
             country_score = 0.6
         scores.append(country_score * 0.4)
         
