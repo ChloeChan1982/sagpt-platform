@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-import requests
 import os
+import json
+import urllib.request
 
 from app.db.database import get_db
 from app.models import schemas
@@ -38,26 +39,29 @@ async def chat_message(request: schemas.ChatRequest, db: Session = Depends(get_d
     
     try:
         url = "https://api.siliconflow.cn/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        data = {
+        
+        data = json.dumps({
             "model": model,
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 1500
-        }
+        }).encode('utf-8')
         
-        response = requests.post(url, headers=headers, json=data, timeout=30)
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
         
-        if response.status_code != 200:
-            return {"chunk": f"[API Error {response.status_code}: {response.text[:200]}]", "done": True}
-        
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
-        
-        return {"chunk": content, "done": True}
-        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            content = result["choices"][0]["message"]["content"]
+            
+            return {"chunk": content, "done": True}
+            
     except Exception as e:
         return {"chunk": f"[Error: {str(e)}]", "done": True}
