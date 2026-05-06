@@ -1,8 +1,6 @@
+
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-import json
-import os
 from datetime import datetime
 
 from app.db.database import get_db
@@ -17,18 +15,15 @@ async def chat_message(
     request: schemas.ChatRequest,
     db: Session = Depends(get_db)
 ):
-    """Non-streaming chat for simple requests"""
-    # 每次请求都重新创建 LLMService
     llm = LLMService()
     
     if not llm.client:
         return {
-            "chunk": f"[AI unavailable. Key length: {len(llm.api_key)}. Check env var.]",
+            "chunk": f"[AI unavailable. Key length: {len(llm.api_key)}.]",
             "done": True,
             "message_id": "error"
         }
     
-    # Build messages
     messages = [{"role": "system", "content": SAGPT_SYSTEM_PROMPT}]
     
     if request.history:
@@ -37,7 +32,6 @@ async def chat_message(
     
     messages.append({"role": "user", "content": request.message})
     
-    # Call API directly using the client
     try:
         response = llm.client.chat.completions.create(
             model=llm.model,
@@ -45,7 +39,21 @@ async def chat_message(
             temperature=0.7,
             max_tokens=1500
         )
-        content = response.choices[0].message.content
+        
+        content = ""
+        if hasattr(response, 'choices') and response.choices:
+            choice = response.choices[0]
+            if hasattr(choice, 'message') and choice.message:
+                if hasattr(choice.message, 'content'):
+                    content = choice.message.content
+                else:
+                    content = str(choice.message)
+            else:
+                content = str(choice)
+        elif isinstance(response, str):
+            content = response
+        else:
+            content = str(response)
         
         return {
             "chunk": content,
