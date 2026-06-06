@@ -12,15 +12,15 @@ services:
       - key: OPENAI_API_KEY
         sync: false  # 用户需要在 Render Dashboard 手动填入
       - key: AI_PROVIDER
-        value: siliconflow
+        value: openai
       - key: OPENAI_BASE_URL
-        value: https://api.siliconflow.cn/v1
+        value: https://open.bigmodel.cn/api/paas/v4
       - key: OPENAI_MODEL
-        value: deepseek-ai/DeepSeek-V2.5
+        value: glm-4.7
       - key: EMBEDDING_MODEL
         value: BAAI/bge-large-zh-v1.5
       - key: USE_FREE_MODEL_TIER
-        value: "true"
+        value: "false"
       - key: FREE_MODEL
         value: Qwen/Qwen2.5-7B-Instruct
       - key: ALLOWED_ORIGINS

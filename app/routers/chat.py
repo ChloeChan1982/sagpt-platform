@@ -6,6 +6,7 @@ import urllib.request
 
 from app.db.database import get_db
 from app.models import schemas
+from app.core.ai_url import build_chat_completions_url
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -27,6 +28,7 @@ Always answer in user's language. Be specific with costs and timelines."""
 @router.post("/message")
 async def chat_message(request: schemas.ChatRequest, db: Session = Depends(get_db)):
     api_key = os.getenv("OPENAI_API_KEY", "")
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.siliconflow.cn/v1")
     model = os.getenv("OPENAI_MODEL", "Qwen/Qwen2.5-72B-Instruct")
     
     if not api_key or len(api_key) < 10:
@@ -38,7 +40,7 @@ async def chat_message(request: schemas.ChatRequest, db: Session = Depends(get_d
     ]
     
     try:
-        url = "https://api.siliconflow.cn/v1/chat/completions"
+        url = build_chat_completions_url(base_url)
         
         data = json.dumps({
             "model": model,
