@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
-import os
 
 from app.core.config import get_settings, PROVIDER_PRESETS
 from app.db.database import init_db, Base, engine
@@ -41,17 +40,6 @@ async def health_check():
         "status": "ok",
         "service": settings.APP_NAME,
         "ai_available": True,
-    }
-
-# Debug endpoint - check environment variables
-@app.get("/debug")
-async def debug():
-    key = os.getenv("OPENAI_API_KEY", "")
-    return {
-        "env_has_key": "OPENAI_API_KEY" in os.environ,
-        "key_length": len(key),
-        "key_prefix": key[:5] if key else "NONE",
-        "all_env_vars": sorted(os.environ.keys()),
     }
 
 # API routes
