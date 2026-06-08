@@ -115,6 +115,15 @@ class ChatSessionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# ========== Payment Schemas ==========
+class CheckoutSessionRequest(BaseModel):
+    price_id: str = Field(..., alias="priceId", min_length=1, max_length=200)
+    plan_name: Optional[str] = Field(default=None, alias="planName", max_length=100)
+    billing_cycle: Optional[str] = Field(default=None, alias="billingCycle", max_length=20)
+
+class CheckoutSessionResponse(BaseModel):
+    url: str
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
