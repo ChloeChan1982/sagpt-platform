@@ -2,7 +2,11 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from app.core.payments import build_checkout_session_params, parse_allowed_price_ids
+from app.core.payments import (
+    DEFAULT_ALLOWED_PRICE_IDS,
+    build_checkout_session_params,
+    parse_allowed_price_ids,
+)
 from app.models.schemas import CheckoutSessionRequest, CheckoutSessionResponse
 
 
@@ -15,7 +19,8 @@ async def create_checkout_session(request: CheckoutSessionRequest):
     if not stripe_secret_key:
         raise HTTPException(status_code=503, detail="Stripe payments are not configured")
 
-    allowed_price_ids = parse_allowed_price_ids(os.getenv("STRIPE_ALLOWED_PRICE_IDS", ""))
+    configured_price_ids = parse_allowed_price_ids(os.getenv("STRIPE_ALLOWED_PRICE_IDS", ""))
+    allowed_price_ids = configured_price_ids or DEFAULT_ALLOWED_PRICE_IDS
     try:
         params = build_checkout_session_params(
             price_id=request.price_id,

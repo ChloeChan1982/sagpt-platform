@@ -1,3 +1,13 @@
+DEFAULT_ALLOWED_PRICE_IDS = {
+    "price_1TYj5JABXtDkfWuyQ4FD7AxQ",
+    "price_1TYj6KABXtDkfWuyfS7nqBG6",
+    "price_1TYjBgABXtDkfWuyIfvwPG96",
+    "price_1TYjDAABXtDkfWuyuVp5Slhz",
+    "price_1TYjEmABXtDkfWuyzVy2tFmM",
+    "price_1TYjFfABXtDkfWuyv9p5AvoC",
+}
+
+
 def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
     return {price_id.strip() for price_id in raw_price_ids.split(",") if price_id.strip()}
 

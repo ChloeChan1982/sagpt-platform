@@ -1,9 +1,17 @@
 import unittest
 
-from app.core.payments import build_checkout_session_params, parse_allowed_price_ids
+from app.core.payments import (
+    DEFAULT_ALLOWED_PRICE_IDS,
+    build_checkout_session_params,
+    parse_allowed_price_ids,
+)
 
 
 class PaymentConfigurationTests(unittest.TestCase):
+    def test_default_allowlist_contains_live_pricing_page_plans(self):
+        self.assertIn("price_1TYjBgABXtDkfWuyIfvwPG96", DEFAULT_ALLOWED_PRICE_IDS)
+        self.assertEqual(len(DEFAULT_ALLOWED_PRICE_IDS), 6)
+
     def test_parses_price_id_allowlist(self):
         self.assertEqual(
             parse_allowed_price_ids("price_basic, price_growth,price_pro"),
