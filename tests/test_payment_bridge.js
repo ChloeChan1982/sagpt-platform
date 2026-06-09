@@ -23,11 +23,12 @@ require("../frontend/sagpt-payments.js");
 
   assert.equal(
     captured.input,
-    "https://sagpt-platform.onrender.com/api/payments/create-checkout-session",
+    "https://api.sagpt.com/api/payments/create-checkout-session",
   );
   assert.equal(captured.init.method, "POST");
   assert.equal(captured.init.headers["Content-Type"], "application/json");
   assert.equal(captured.init.body, body);
+  assert.equal(captured.init.credentials, "include");
 
   await window.fetch("https://example.com/health", { method: "GET" });
   assert.equal(captured.input, "https://example.com/health");

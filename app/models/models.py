@@ -85,3 +85,59 @@ class ChatSession(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    name = Column(String(200), nullable=False)
+    password_hash = Column(Text, nullable=False)
+    firm_name = Column(String(200))
+    country = Column(String(100))
+    avatar = Column(Text)
+    verified_email = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    purpose = Column(String(30), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Membership(Base):
+    __tablename__ = "memberships"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), nullable=False, unique=True, index=True)
+    plan = Column(String(100), nullable=False, default="none")
+    status = Column(String(30), nullable=False, default="none", index=True)
+    stripe_customer_id = Column(String(255), unique=True, index=True)
+    stripe_subscription_id = Column(String(255), unique=True, index=True)
+    stripe_price_id = Column(String(255))
+    expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class StripeWebhookEvent(Base):
+    __tablename__ = "stripe_webhook_events"
+
+    event_id = Column(String(255), primary_key=True)
+    event_type = Column(String(100), nullable=False)
+    processed_at = Column(DateTime(timezone=True), server_default=func.now())

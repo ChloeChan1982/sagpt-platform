@@ -13,12 +13,24 @@ services:
         sync: false  # 用户需要在 Render Dashboard 手动填入
       - key: STRIPE_SECRET_KEY
         sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: STRIPE_ALLOWED_PRICE_IDS
         value: price_1TYj5JABXtDkfWuyQ4FD7AxQ,price_1TYj6KABXtDkfWuyfS7nqBG6,price_1TYjBgABXtDkfWuyIfvwPG96,price_1TYjDAABXtDkfWuyuVp5Slhz,price_1TYjEmABXtDkfWuyzVy2tFmM,price_1TYjFfABXtDkfWuyv9p5AvoC
       - key: STRIPE_SUCCESS_URL
         value: https://www.sagpt.com/pricing?success=true
       - key: STRIPE_CANCEL_URL
         value: https://www.sagpt.com/pricing?canceled=true
+      - key: AUTH_COOKIE_DOMAIN
+        value: .sagpt.com
+      - key: APP_BASE_URL
+        value: https://www.sagpt.com
+      - key: API_BASE_URL
+        value: https://api.sagpt.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: AUTH_FROM_EMAIL
+        value: SAGPT <account@mail.sagpt.com>
       - key: AI_PROVIDER
         value: openai
       - key: OPENAI_BASE_URL

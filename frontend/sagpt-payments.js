@@ -7,7 +7,7 @@
   var retiredCheckoutUrl =
     "https://udoklrcatizfiuvrsg.supabase.co/functions/v1/create-checkout-session";
   var checkoutApiUrl =
-    "https://sagpt-platform.onrender.com/api/payments/create-checkout-session";
+    "https://api.sagpt.com/api/payments/create-checkout-session";
   var originalFetch = window.fetch.bind(window);
 
   window.fetch = function (input, init) {
@@ -20,6 +20,7 @@
         headers: { "Content-Type": "application/json" },
         body: options.body,
         signal: options.signal,
+        credentials: "include",
       });
     }
 

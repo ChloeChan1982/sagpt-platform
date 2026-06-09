@@ -5,7 +5,7 @@ import uvicorn
 
 from app.core.config import get_settings, PROVIDER_PRESETS
 from app.db.database import init_db, Base, engine
-from app.routers import demands, chat, experts, payments, providers
+from app.routers import auth, demands, chat, experts, payments, providers
 
 settings = get_settings()
 
@@ -43,6 +43,7 @@ async def health_check():
     }
 
 # API routes
+app.include_router(auth.router, prefix="/api")
 app.include_router(demands.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(experts.router, prefix="/api")
@@ -52,9 +53,10 @@ app.include_router(providers.router, prefix="/api")
 # Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    print(f"Unhandled error: {type(exc).__name__}: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "type": type(exc).__name__}
+        content={"detail": "Internal server error"}
     )
 
 if __name__ == "__main__":

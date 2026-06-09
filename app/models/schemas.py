@@ -124,6 +124,27 @@ class CheckoutSessionRequest(BaseModel):
 class CheckoutSessionResponse(BaseModel):
     url: str
 
+# ========== Authentication Schemas ==========
+class RegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=200)
+    email: EmailStr
+    password: str = Field(..., min_length=10, max_length=200)
+    firm_name: Optional[str] = Field(default=None, alias="firmName", max_length=200)
+    country: Optional[str] = Field(default=None, max_length=100)
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=200)
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+class TokenRequest(BaseModel):
+    token: str = Field(..., min_length=20, max_length=500)
+
+class ResetPasswordRequest(TokenRequest):
+    password: str = Field(..., min_length=10, max_length=200)
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
