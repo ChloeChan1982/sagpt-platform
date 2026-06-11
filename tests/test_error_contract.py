@@ -10,6 +10,12 @@ class ErrorContractTests(unittest.TestCase):
         self.assertIn("@app.exception_handler(HTTPException)", MAIN_SOURCE)
         self.assertIn('"message": detail', MAIN_SOURCE)
 
+    def test_validation_errors_include_message_without_echoing_input(self):
+        self.assertIn("@app.exception_handler(RequestValidationError)", MAIN_SOURCE)
+        self.assertIn('"message": errors[0]["msg"]', MAIN_SOURCE)
+        self.assertIn('"loc": error["loc"]', MAIN_SOURCE)
+        self.assertNotIn('"input": error["input"]', MAIN_SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()
