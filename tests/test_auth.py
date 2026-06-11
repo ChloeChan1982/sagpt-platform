@@ -40,6 +40,13 @@ class AuthenticationTests(unittest.TestCase):
         self.assertIn("except EmailDeliveryError", source)
         self.assertIn("Verification email service is unavailable", source)
 
+    def test_resend_request_identifies_the_application(self):
+        source = (
+            Path(__file__).parents[1] / "app" / "services" / "email_service.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('"User-Agent": "SAGPT-Backend/1.0"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
