@@ -16,6 +16,12 @@ class ErrorContractTests(unittest.TestCase):
         self.assertIn('"loc": error["loc"]', MAIN_SOURCE)
         self.assertNotIn('"input": error["input"]', MAIN_SOURCE)
 
+    def test_global_errors_include_frontend_message(self):
+        self.assertIn(
+            'content={"detail": "Internal server error", "message": "Internal server error"}',
+            MAIN_SOURCE,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from app.core.auth import (
     hash_opaque_token,
@@ -30,6 +31,14 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(map_stripe_membership_status("past_due"), "expired")
         self.assertEqual(map_stripe_membership_status("canceled"), "expired")
         self.assertEqual(map_stripe_membership_status(None), "none")
+
+    def test_registration_converts_email_delivery_failure_to_service_unavailable(self):
+        source = (
+            Path(__file__).parents[1] / "app" / "routers" / "auth.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("except EmailDeliveryError", source)
+        self.assertIn("Verification email service is unavailable", source)
 
 
 if __name__ == "__main__":

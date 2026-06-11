@@ -1,13 +1,18 @@
 import json
 import os
+import urllib.error
 import urllib.request
+
+
+class EmailDeliveryError(RuntimeError):
+    pass
 
 
 def send_auth_email(*, to_email: str, subject: str, html: str) -> None:
     api_key = os.getenv("RESEND_API_KEY", "").strip()
     from_email = os.getenv("AUTH_FROM_EMAIL", "SAGPT <account@mail.sagpt.com>").strip()
     if not api_key:
-        raise RuntimeError("Resend is not configured")
+        raise EmailDeliveryError("Resend is not configured")
 
     payload = json.dumps(
         {"from": from_email, "to": [to_email], "subject": subject, "html": html}
@@ -18,8 +23,16 @@ def send_auth_email(*, to_email: str, subject: str, html: str) -> None:
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=20):
-        pass
+    try:
+        with urllib.request.urlopen(request, timeout=20):
+            pass
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")[:1000]
+        print(f"Resend delivery error: HTTP {exc.code}: {response_body}")
+        raise EmailDeliveryError("Resend rejected the email request") from exc
+    except urllib.error.URLError as exc:
+        print(f"Resend connection error: {exc.reason}")
+        raise EmailDeliveryError("Unable to connect to Resend") from exc
 
 
 def verification_email_html(token: str) -> str:

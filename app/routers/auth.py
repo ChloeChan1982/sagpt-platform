@@ -14,7 +14,12 @@ from app.core.auth import (
 from app.db.database import get_db
 from app.models import schemas
 from app.models.models import AuthToken, Membership, User, UserSession
-from app.services.email_service import reset_email_html, send_auth_email, verification_email_html
+from app.services.email_service import (
+    EmailDeliveryError,
+    reset_email_html,
+    send_auth_email,
+    verification_email_html,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -114,11 +119,18 @@ def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.flush()
     token = _create_action_token(db, user.id, "verify_email", timedelta(hours=24))
-    send_auth_email(
-        to_email=user.email,
-        subject="Verify your SAGPT email",
-        html=verification_email_html(token),
-    )
+    try:
+        send_auth_email(
+            to_email=user.email,
+            subject="Verify your SAGPT email",
+            html=verification_email_html(token),
+        )
+    except EmailDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Verification email service is unavailable",
+        ) from exc
     db.commit()
     return {"message": "Registration successful. Check your email to verify your account."}
 
