@@ -13,6 +13,7 @@ from app.core.payments import (
     get_line_item_price_id,
     get_plan_name,
     has_active_membership,
+    normalize_stripe_object,
     parse_allowed_price_ids,
 )
 from app.core.auth import map_stripe_membership_status
@@ -118,7 +119,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         import stripe
 
-        event = stripe.Webhook.construct_event(payload, signature, webhook_secret)
+        event = normalize_stripe_object(
+            stripe.Webhook.construct_event(payload, signature, webhook_secret)
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid Stripe webhook signature") from exc
 
@@ -133,10 +136,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         user_id = _metadata_value(obj, "user_id") or obj.get("client_reference_id")
         price_id = _metadata_value(obj, "price_id")
         if not price_id and obj.get("id"):
-            line_items = stripe.checkout.Session.list_line_items(
-                obj["id"],
-                limit=1,
-                api_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
+            line_items = normalize_stripe_object(
+                stripe.checkout.Session.list_line_items(
+                    obj["id"],
+                    limit=1,
+                    api_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
+                )
             )
             price_id = get_line_item_price_id(line_items)
         if not user_id:

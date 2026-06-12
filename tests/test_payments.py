@@ -9,6 +9,7 @@ from app.core.payments import (
     get_line_item_price_id,
     get_plan_name,
     has_active_membership,
+    normalize_stripe_object,
     parse_allowed_price_ids,
 )
 
@@ -110,6 +111,15 @@ class PaymentConfigurationTests(unittest.TestCase):
 
         self.assertIn("existing_event =", source)
         self.assertIn('"duplicate": existing_event is not None', source)
+
+    def test_normalizes_stripe_objects_before_using_dict_helpers(self):
+        class FakeStripeObject:
+            def to_dict_recursive(self):
+                return {"parent": {"subscription_details": {"subscription": "sub_123"}}}
+
+        normalized = normalize_stripe_object(FakeStripeObject())
+
+        self.assertEqual(get_invoice_subscription_id(normalized), "sub_123")
 
 
 if __name__ == "__main__":

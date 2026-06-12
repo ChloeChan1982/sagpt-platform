@@ -9,6 +9,12 @@ PRICE_PLAN_NAMES = {
 DEFAULT_ALLOWED_PRICE_IDS = set(PRICE_PLAN_NAMES)
 
 
+def normalize_stripe_object(value):
+    if hasattr(value, "to_dict_recursive"):
+        return value.to_dict_recursive()
+    return value
+
+
 def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
     return {price_id.strip() for price_id in raw_price_ids.split(",") if price_id.strip()}
 
