@@ -11,7 +11,14 @@ DEFAULT_ALLOWED_PRICE_IDS = set(PRICE_PLAN_NAMES)
 
 def normalize_stripe_object(value):
     if hasattr(value, "to_dict_recursive"):
-        return value.to_dict_recursive()
+        value = value.to_dict_recursive()
+    if isinstance(value, dict):
+        return {
+            key: normalize_stripe_object(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [normalize_stripe_object(item) for item in value]
     return value
 
 

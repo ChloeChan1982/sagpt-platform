@@ -122,6 +122,20 @@ class PaymentConfigurationTests(unittest.TestCase):
 
         self.assertEqual(get_invoice_subscription_id(normalized), "sub_123")
 
+    def test_normalizes_nested_stripe_objects_inside_plain_dicts(self):
+        class FakeStripeObject:
+            def to_dict_recursive(self):
+                return {"metadata": {"user_id": "user-123"}}
+
+        normalized = normalize_stripe_object(
+            {"data": {"object": FakeStripeObject()}}
+        )
+
+        self.assertEqual(
+            normalized["data"]["object"]["metadata"]["user_id"],
+            "user-123",
+        )
+
     def test_reads_id_from_expanded_stripe_object(self):
         self.assertEqual(get_stripe_id({"id": "sub_123"}), "sub_123")
         self.assertEqual(get_stripe_id("sub_456"), "sub_456")

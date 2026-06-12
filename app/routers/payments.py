@@ -131,7 +131,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     ).first()
 
     event_type = event["type"]
-    obj = event["data"]["object"]
+    obj = normalize_stripe_object(event["data"]["object"])
 
     if event_type == "checkout.session.completed":
         user_id = _metadata_value(obj, "user_id") or obj.get("client_reference_id")
