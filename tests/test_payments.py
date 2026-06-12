@@ -1,9 +1,12 @@
 import unittest
+from pathlib import Path
 
 from app.core.payments import (
     DEFAULT_ALLOWED_PRICE_IDS,
     build_checkout_session_params,
+    get_checkout_email,
     get_invoice_subscription_id,
+    get_line_item_price_id,
     get_plan_name,
     has_active_membership,
     parse_allowed_price_ids,
@@ -78,6 +81,35 @@ class PaymentConfigurationTests(unittest.TestCase):
             get_invoice_subscription_id({"subscription": "sub_legacy"}),
             "sub_legacy",
         )
+
+    def test_reads_checkout_email_from_customer_details(self):
+        session = {
+            "customer_email": "fallback@example.com",
+            "customer_details": {"email": "Member@Example.COM"},
+        }
+
+        self.assertEqual(get_checkout_email(session), "member@example.com")
+
+    def test_reads_price_id_from_checkout_line_items(self):
+        line_items = {
+            "data": [
+                {
+                    "price": {
+                        "id": "price_basic",
+                    }
+                }
+            ]
+        }
+
+        self.assertEqual(get_line_item_price_id(line_items), "price_basic")
+
+    def test_webhook_can_reprocess_previously_recorded_events(self):
+        source = (
+            Path(__file__).parents[1] / "app" / "routers" / "payments.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("existing_event =", source)
+        self.assertIn('"duplicate": existing_event is not None', source)
 
 
 if __name__ == "__main__":

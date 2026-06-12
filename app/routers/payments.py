@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.payments import (
     DEFAULT_ALLOWED_PRICE_IDS,
     build_checkout_session_params,
+    get_checkout_email,
     get_invoice_subscription_id,
+    get_line_item_price_id,
     get_plan_name,
     has_active_membership,
     parse_allowed_price_ids,
@@ -120,25 +122,41 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid Stripe webhook signature") from exc
 
-    if db.query(StripeWebhookEvent).filter(
+    existing_event = db.query(StripeWebhookEvent).filter(
         StripeWebhookEvent.event_id == event["id"]
-    ).first():
-        return {"received": True, "duplicate": True}
+    ).first()
 
     event_type = event["type"]
     obj = event["data"]["object"]
 
     if event_type == "checkout.session.completed":
         user_id = _metadata_value(obj, "user_id") or obj.get("client_reference_id")
-        if user_id:
+        price_id = _metadata_value(obj, "price_id")
+        if not price_id and obj.get("id"):
+            line_items = stripe.checkout.Session.list_line_items(
+                obj["id"],
+                limit=1,
+                api_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
+            )
+            price_id = get_line_item_price_id(line_items)
+        if not user_id:
+            checkout_email = get_checkout_email(obj)
+            if checkout_email:
+                matched_user = db.query(User).filter(
+                    User.email == checkout_email,
+                    User.verified_email.is_(True),
+                ).first()
+                if matched_user:
+                    user_id = matched_user.id
+        if user_id and price_id in DEFAULT_ALLOWED_PRICE_IDS:
             _upsert_membership(
                 db,
                 user_id=user_id,
-                plan=_metadata_value(obj, "plan"),
+                plan=_metadata_value(obj, "plan") or get_plan_name(price_id),
                 status="active" if obj.get("payment_status") == "paid" else "incomplete",
                 customer_id=obj.get("customer"),
                 subscription_id=obj.get("subscription"),
-                price_id=_metadata_value(obj, "price_id"),
+                price_id=price_id,
             )
     elif event_type.startswith("customer.subscription."):
         user_id = _metadata_value(obj, "user_id")
@@ -170,6 +188,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         if membership:
             membership.status = "active" if event_type == "invoice.paid" else "expired"
 
-    db.add(StripeWebhookEvent(event_id=event["id"], event_type=event_type))
+    if existing_event is None:
+        db.add(StripeWebhookEvent(event_id=event["id"], event_type=event_type))
     db.commit()
-    return {"received": True}
+    return {"received": True, "duplicate": existing_event is not None}

@@ -19,6 +19,22 @@ def get_invoice_subscription_id(invoice: dict) -> str | None:
     return subscription_details.get("subscription") or invoice.get("subscription")
 
 
+def get_checkout_email(session: dict) -> str | None:
+    customer_details = session.get("customer_details") or {}
+    email = customer_details.get("email") or session.get("customer_email")
+    return email.strip().lower() if email else None
+
+
+def get_line_item_price_id(line_items: dict) -> str | None:
+    items = line_items.get("data") or []
+    if not items:
+        return None
+    price = items[0].get("price")
+    if isinstance(price, str):
+        return price
+    return (price or {}).get("id")
+
+
 def get_plan_name(price_id: str) -> str:
     return PRICE_PLAN_NAMES.get(price_id, "SAGPT Membership")
 
