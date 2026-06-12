@@ -9,6 +9,7 @@ from app.core.payments import (
     get_line_item_price_id,
     get_plan_name,
     get_stripe_id,
+    get_stripe_value,
     has_active_membership,
     normalize_stripe_object,
     parse_allowed_price_ids,
@@ -151,6 +152,22 @@ class PaymentConfigurationTests(unittest.TestCase):
         self.assertEqual(get_stripe_id({"id": "sub_123"}), "sub_123")
         self.assertEqual(get_stripe_id("sub_456"), "sub_456")
         self.assertIsNone(get_stripe_id(None))
+
+    def test_reads_values_from_stripe_object_without_get_method(self):
+        class FakeStripeObject:
+            def __init__(self, values):
+                self.values = values
+
+            def __getitem__(self, key):
+                return self.values[key]
+
+        obj = FakeStripeObject({"metadata": {"user_id": "user-123"}})
+
+        self.assertEqual(
+            get_stripe_value(obj, "metadata"),
+            {"user_id": "user-123"},
+        )
+        self.assertIsNone(get_stripe_value(obj, "missing"))
 
 
 if __name__ == "__main__":

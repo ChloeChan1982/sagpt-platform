@@ -13,6 +13,7 @@ from app.core.payments import (
     get_line_item_price_id,
     get_plan_name,
     get_stripe_id,
+    get_stripe_value,
     has_active_membership,
     normalize_stripe_object,
     parse_allowed_price_ids,
@@ -105,8 +106,8 @@ def _upsert_membership(
 
 
 def _metadata_value(obj, key: str):
-    metadata = obj.get("metadata") or {}
-    return metadata.get(key)
+    metadata = get_stripe_value(obj, "metadata") or {}
+    return get_stripe_value(metadata, key)
 
 
 @router.post("/webhook")
@@ -134,12 +135,14 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     obj = normalize_stripe_object(event["data"]["object"])
 
     if event_type == "checkout.session.completed":
-        user_id = _metadata_value(obj, "user_id") or obj.get("client_reference_id")
+        user_id = _metadata_value(obj, "user_id") or get_stripe_value(
+            obj, "client_reference_id"
+        )
         price_id = _metadata_value(obj, "price_id")
-        if not price_id and obj.get("id"):
+        if not price_id and get_stripe_value(obj, "id"):
             line_items = normalize_stripe_object(
                 stripe.checkout.Session.list_line_items(
-                    obj["id"],
+                    get_stripe_value(obj, "id"),
                     limit=1,
                     api_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
                 )
@@ -159,9 +162,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 db,
                 user_id=user_id,
                 plan=_metadata_value(obj, "plan") or get_plan_name(price_id),
-                status="active" if obj.get("payment_status") == "paid" else "incomplete",
-                customer_id=get_stripe_id(obj.get("customer")),
-                subscription_id=get_stripe_id(obj.get("subscription")),
+                status="active"
+                if get_stripe_value(obj, "payment_status") == "paid"
+                else "incomplete",
+                customer_id=get_stripe_id(get_stripe_value(obj, "customer")),
+                subscription_id=get_stripe_id(get_stripe_value(obj, "subscription")),
                 price_id=price_id,
             )
     elif event_type.startswith("customer.subscription."):
@@ -172,20 +177,25 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 db,
                 user_id=user_id,
                 plan=_metadata_value(obj, "plan"),
-                status=obj.get("status"),
-                customer_id=get_stripe_id(obj.get("customer")),
-                subscription_id=get_stripe_id(obj.get("id")),
+                status=get_stripe_value(obj, "status"),
+                customer_id=get_stripe_id(get_stripe_value(obj, "customer")),
+                subscription_id=get_stripe_id(get_stripe_value(obj, "id")),
                 price_id=_metadata_value(obj, "price_id"),
-                expires_at=datetime.utcfromtimestamp(obj["current_period_end"])
-                if obj.get("current_period_end")
+                expires_at=datetime.utcfromtimestamp(
+                    get_stripe_value(obj, "current_period_end")
+                )
+                if get_stripe_value(obj, "current_period_end")
                 else None,
             )
-        elif get_stripe_id(obj.get("id")):
+        elif get_stripe_id(get_stripe_value(obj, "id")):
             membership = db.query(Membership).filter(
-                Membership.stripe_subscription_id == get_stripe_id(obj.get("id"))
+                Membership.stripe_subscription_id
+                == get_stripe_id(get_stripe_value(obj, "id"))
             ).first()
             if membership:
-                membership.status = map_stripe_membership_status(obj.get("status"))
+                membership.status = map_stripe_membership_status(
+                    get_stripe_value(obj, "status")
+                )
     elif event_type in {"invoice.paid", "invoice.payment_failed"}:
         subscription_id = get_invoice_subscription_id(obj)
         membership = db.query(Membership).filter(

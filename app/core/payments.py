@@ -22,12 +22,21 @@ def normalize_stripe_object(value):
     return value
 
 
+def get_stripe_value(value, key: str, default=None):
+    if value is None:
+        return default
+    if isinstance(value, dict):
+        return value.get(key, default)
+    try:
+        return value[key]
+    except (KeyError, TypeError, AttributeError):
+        return default
+
+
 def get_stripe_id(value) -> str | None:
     if isinstance(value, str):
         return value
-    if isinstance(value, dict):
-        return value.get("id")
-    return None
+    return get_stripe_value(value, "id")
 
 
 def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
@@ -35,27 +44,30 @@ def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
 
 
 def get_invoice_subscription_id(invoice: dict) -> str | None:
-    parent = invoice.get("parent") or {}
-    subscription_details = parent.get("subscription_details") or {}
+    parent = get_stripe_value(invoice, "parent") or {}
+    subscription_details = get_stripe_value(parent, "subscription_details") or {}
     return get_stripe_id(
-        subscription_details.get("subscription") or invoice.get("subscription")
+        get_stripe_value(subscription_details, "subscription")
+        or get_stripe_value(invoice, "subscription")
     )
 
 
 def get_checkout_email(session: dict) -> str | None:
-    customer_details = session.get("customer_details") or {}
-    email = customer_details.get("email") or session.get("customer_email")
+    customer_details = get_stripe_value(session, "customer_details") or {}
+    email = get_stripe_value(customer_details, "email") or get_stripe_value(
+        session, "customer_email"
+    )
     return email.strip().lower() if email else None
 
 
 def get_line_item_price_id(line_items: dict) -> str | None:
-    items = line_items.get("data") or []
+    items = get_stripe_value(line_items, "data") or []
     if not items:
         return None
-    price = items[0].get("price")
+    price = get_stripe_value(items[0], "price")
     if isinstance(price, str):
         return price
-    return (price or {}).get("id")
+    return get_stripe_id(price)
 
 
 def get_plan_name(price_id: str) -> str:
