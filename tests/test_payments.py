@@ -78,6 +78,17 @@ class PaymentConfigurationTests(unittest.TestCase):
 
         self.assertEqual(get_invoice_subscription_id(invoice), "sub_current")
 
+    def test_reads_subscription_id_from_expanded_invoice_shape(self):
+        invoice = {
+            "parent": {
+                "subscription_details": {
+                    "subscription": {"id": "sub_expanded"},
+                }
+            }
+        }
+
+        self.assertEqual(get_invoice_subscription_id(invoice), "sub_expanded")
+
     def test_reads_subscription_id_from_legacy_invoice_shape(self):
         self.assertEqual(
             get_invoice_subscription_id({"subscription": "sub_legacy"}),

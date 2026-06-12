@@ -37,7 +37,9 @@ def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
 def get_invoice_subscription_id(invoice: dict) -> str | None:
     parent = invoice.get("parent") or {}
     subscription_details = parent.get("subscription_details") or {}
-    return subscription_details.get("subscription") or invoice.get("subscription")
+    return get_stripe_id(
+        subscription_details.get("subscription") or invoice.get("subscription")
+    )
 
 
 def get_checkout_email(session: dict) -> str | None:
