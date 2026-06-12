@@ -8,6 +8,7 @@ from app.core.payments import (
     get_invoice_subscription_id,
     get_line_item_price_id,
     get_plan_name,
+    get_stripe_id,
     has_active_membership,
     normalize_stripe_object,
     parse_allowed_price_ids,
@@ -120,6 +121,11 @@ class PaymentConfigurationTests(unittest.TestCase):
         normalized = normalize_stripe_object(FakeStripeObject())
 
         self.assertEqual(get_invoice_subscription_id(normalized), "sub_123")
+
+    def test_reads_id_from_expanded_stripe_object(self):
+        self.assertEqual(get_stripe_id({"id": "sub_123"}), "sub_123")
+        self.assertEqual(get_stripe_id("sub_456"), "sub_456")
+        self.assertIsNone(get_stripe_id(None))
 
 
 if __name__ == "__main__":

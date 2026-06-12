@@ -15,6 +15,14 @@ def normalize_stripe_object(value):
     return value
 
 
+def get_stripe_id(value) -> str | None:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return value.get("id")
+    return None
+
+
 def parse_allowed_price_ids(raw_price_ids: str) -> set[str]:
     return {price_id.strip() for price_id in raw_price_ids.split(",") if price_id.strip()}
 
