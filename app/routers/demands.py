@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List, Optional
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -15,6 +16,7 @@ from app.services.ai_service import get_llm_service, get_matching_service
 
 router = APIRouter(prefix="/demands", tags=["demands"])
 settings = get_settings()
+matching_tasks = set()
 
 
 def require_admin_api_key(x_api_key: Optional[str] = Header(default=None)):
@@ -53,6 +55,16 @@ async def process_demand_matching(demand_id: str):
         db.close()
 
 
+def run_demand_matching(demand_id: str):
+    asyncio.run(process_demand_matching(demand_id))
+
+
+def schedule_demand_matching(demand_id: str):
+    task = asyncio.create_task(asyncio.to_thread(run_demand_matching, demand_id))
+    matching_tasks.add(task)
+    task.add_done_callback(matching_tasks.discard)
+
+
 def apply_demand_filters(query, status=None, country=None, search=None):
     if status:
         query = query.filter(Demand.status == status)
@@ -73,7 +85,6 @@ def apply_demand_filters(query, status=None, country=None, search=None):
 async def submit_demand(
     request: Request,
     demand_data: schemas.DemandCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     demand = Demand(
@@ -97,7 +108,7 @@ async def submit_demand(
     db.commit()
     db.refresh(demand)
 
-    background_tasks.add_task(process_demand_matching, str(demand.id))
+    schedule_demand_matching(str(demand.id))
 
     return schemas.DemandSubmitResponse(
         success=True,

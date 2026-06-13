@@ -7,10 +7,10 @@ protected backend APIs for staff to view and download submitted demands.
 
 ## Design
 
-- `POST /api/demands/submit` commits the demand, schedules AI matching with FastAPI
-  `BackgroundTasks`, and immediately returns the demand ID with an empty preview list.
-- The background matcher opens its own SQLAlchemy session so it does not depend on the
-  request session after the response has completed.
+- `POST /api/demands/submit` commits the demand, schedules AI matching in a detached
+  worker thread, and immediately returns the demand ID with an empty preview list.
+- The background matcher opens its own SQLAlchemy session and runs blocking AI SDK
+  calls outside the web server event loop.
 - `GET /api/demands/admin/list` returns paginated demands with optional status, country,
   and text search filters.
 - `GET /api/demands/admin/export.csv` downloads the same filtered demand data as UTF-8

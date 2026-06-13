@@ -4,7 +4,7 @@
 
 **Goal:** Return demand submissions promptly and add protected demand list and CSV export APIs.
 
-**Architecture:** A focused demand-admin helper module handles API-key validation and CSV serialization. The demand router schedules matching as a background task with its own database session and exposes protected, filtered management endpoints.
+**Architecture:** A focused demand-admin helper module handles API-key validation and CSV serialization. The demand router schedules matching in a detached worker thread with its own database session and exposes protected, filtered management endpoints.
 
 **Tech Stack:** FastAPI, SQLAlchemy, Python `csv`, `unittest`
 

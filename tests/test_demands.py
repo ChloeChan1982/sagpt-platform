@@ -54,15 +54,17 @@ class DemandAdministrationTests(unittest.TestCase):
             ["https://example.com/brief.pdf"],
         )
 
-    def test_routes_schedule_matching_and_expose_protected_admin_endpoints(self):
+    def test_routes_detach_matching_and_expose_protected_admin_endpoints(self):
         source = (
             Path(__file__).parents[1] / "app" / "routers" / "demands.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn(
-            "background_tasks.add_task(process_demand_matching, str(demand.id))",
+            "asyncio.create_task(asyncio.to_thread(run_demand_matching, demand_id))",
             source,
         )
+        self.assertIn("schedule_demand_matching(str(demand.id))", source)
+        self.assertNotIn("background_tasks.add_task", source)
         self.assertIn('@router.get("/admin/list")', source)
         self.assertIn('@router.get("/admin/export.csv")', source)
         self.assertGreaterEqual(source.count("Depends(require_admin_api_key)"), 2)
