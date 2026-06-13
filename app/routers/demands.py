@@ -1,16 +1,73 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header, Query, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from app.db.database import get_db
+from app.core.config import get_settings
+from app.core.demands import build_demand_csv, demand_to_admin_dict, is_admin_api_key_valid
+from app.db.database import get_db, SessionLocal
 from app.models import schemas
-from app.models.models import Demand, Expert
+from app.models.models import Demand
 from app.services.ai_service import get_llm_service, get_matching_service
 
 router = APIRouter(prefix="/demands", tags=["demands"])
+settings = get_settings()
+
+
+def require_admin_api_key(x_api_key: Optional[str] = Header(default=None)):
+    if not is_admin_api_key_valid(x_api_key, settings.API_SECRET_KEY):
+        raise HTTPException(status_code=401, detail="Invalid admin API key")
+    return x_api_key
+
+
+async def process_demand_matching(demand_id: str):
+    db = SessionLocal()
+    try:
+        demand = db.query(Demand).filter(Demand.id == demand_id).first()
+        if not demand:
+            return
+
+        llm = get_llm_service()
+        embedding = await llm.get_embedding(
+            f"Country: {demand.target_country}. Industry: {demand.industry}. "
+            f"Scenario: {demand.scenario}. Budget: {demand.budget_range}. "
+            f"Need: {demand.description}"
+        )
+        if embedding:
+            demand.description_embedding = embedding
+            db.commit()
+
+        matcher = get_matching_service()
+        matches = await matcher.find_matches(db, demand, top_k=5, min_score=0.2)
+        demand.matched_expert_ids = [str(match.expert_id) for match in matches[:3]]
+        demand.ai_match_score = matches[0].match_score if matches else 0.0
+        demand.status = "matching"
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"Demand matching error for {demand_id}: {type(exc).__name__}: {exc}")
+    finally:
+        db.close()
+
+
+def apply_demand_filters(query, status=None, country=None, search=None):
+    if status:
+        query = query.filter(Demand.status == status)
+    if country:
+        query = query.filter(Demand.target_country == country)
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Demand.company_name.ilike(pattern),
+                Demand.email.ilike(pattern),
+                Demand.description.ilike(pattern),
+            )
+        )
+    return query
 
 @router.post("/submit", response_model=schemas.DemandSubmitResponse)
 async def submit_demand(
@@ -40,30 +97,60 @@ async def submit_demand(
     db.commit()
     db.refresh(demand)
 
-    llm = get_llm_service()
-    embedding = await llm.get_embedding(
-        f"Country: {demand.target_country}. Industry: {demand.industry}. "
-        f"Scenario: {demand.scenario}. Budget: {demand.budget_range}. Need: {demand.description}"
-    )
-    if embedding:
-        demand.description_embedding = embedding
-        db.commit()
-
-    matcher = get_matching_service()
-    matches = await matcher.find_matches(db, demand, top_k=5, min_score=0.2)
-
-    demand.matched_expert_ids = [str(m.expert_id) for m in matches[:3]]
-    demand.ai_match_score = matches[0].match_score if matches else 0.0
-    demand.status = "matching"
-    db.commit()
+    background_tasks.add_task(process_demand_matching, str(demand.id))
 
     return schemas.DemandSubmitResponse(
         success=True,
         demand_id=uuid.UUID(str(demand.id)),
         message="Your demand has been submitted successfully! Our AI is analyzing your needs.",
         estimated_match_time="within 24 hours",
-        preview_matches=matches
+        preview_matches=[]
     )
+
+
+@router.get("/admin/list")
+async def list_demands_for_admin(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    status: Optional[str] = None,
+    country: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin_api_key),
+):
+    query = apply_demand_filters(db.query(Demand), status, country, search)
+    total = query.count()
+    demands = (
+        query.order_by(Demand.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "demands": [demand_to_admin_dict(demand) for demand in demands],
+    }
+
+
+@router.get("/admin/export.csv")
+async def export_demands_for_admin(
+    status: Optional[str] = None,
+    country: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin_api_key),
+):
+    query = apply_demand_filters(db.query(Demand), status, country, search)
+    demands = query.order_by(Demand.created_at.desc()).all()
+    filename = f"sagpt-demands-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        content=build_demand_csv(demands),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 @router.get("/{demand_id}", response_model=schemas.DemandResponse)
 async def get_demand(demand_id: uuid.UUID, db: Session = Depends(get_db)):
