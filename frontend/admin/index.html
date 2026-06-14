@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAGPT 需求管理</title>
+  <link rel="stylesheet" href="/admin-assets/admin.css">
+</head>
+<body>
+  <section id="login-view" class="login-view">
+    <form id="login-form" class="login-panel">
+      <div class="brand-mark">S</div>
+      <p class="eyebrow">SAGPT OPERATIONS</p>
+      <h1>需求管理</h1>
+      <p class="muted">输入管理员密钥以查看企业需求。</p>
+      <label for="api-key">管理员密钥</label>
+      <input id="api-key" type="password" autocomplete="current-password" required>
+      <p id="login-error" class="error-text" role="alert"></p>
+      <button id="login-button" type="submit">进入后台</button>
+    </form>
+  </section>
+
+  <div id="dashboard" class="dashboard hidden">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">SAGPT OPERATIONS</p>
+        <h1>需求管理</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="refresh-button" class="secondary" type="button">刷新</button>
+        <button id="export-button" type="button">下载 CSV</button>
+        <button id="logout-button" class="secondary" type="button">退出</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="stats" class="stats" aria-label="需求统计"></section>
+
+      <section class="workspace">
+        <div class="list-pane">
+          <form id="filters" class="filters">
+            <input id="search" type="search" placeholder="搜索公司、邮箱或需求描述">
+            <select id="status-filter" aria-label="按状态筛选">
+              <option value="">全部状态</option>
+              <option value="pending">待处理</option>
+              <option value="matching">匹配中</option>
+              <option value="contacted">已联系</option>
+              <option value="completed">已完成</option>
+              <option value="closed">已关闭</option>
+            </select>
+            <input id="country-filter" type="search" placeholder="目标国家">
+            <button type="submit">筛选</button>
+            <button id="clear-filters" class="secondary" type="button">清除</button>
+          </form>
+
+          <p id="page-error" class="error-banner hidden" role="alert"></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>提交时间</th>
+                  <th>公司</th>
+                  <th>目标国家</th>
+                  <th>行业</th>
+                  <th>状态</th>
+                  <th>匹配分数</th>
+                </tr>
+              </thead>
+              <tbody id="demand-rows"></tbody>
+            </table>
+            <div id="empty-state" class="empty-state hidden">暂无符合条件的需求</div>
+          </div>
+
+          <footer class="pagination">
+            <span id="page-summary"></span>
+            <div>
+              <button id="previous-page" class="secondary" type="button">上一页</button>
+              <button id="next-page" class="secondary" type="button">下一页</button>
+            </div>
+          </footer>
+        </div>
+
+        <aside id="detail-panel" class="detail-panel" aria-label="需求详情">
+          <div class="detail-placeholder">选择一条需求查看完整信息</div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <template id="detail-template">
+    <div class="detail-header">
+      <div>
+        <p class="eyebrow">需求详情</p>
+        <h2 data-field="company_name"></h2>
+      </div>
+      <button class="icon-button" data-action="close" type="button" aria-label="关闭详情">×</button>
+    </div>
+    <dl class="detail-grid"></dl>
+    <section class="detail-section">
+      <h3>需求描述</h3>
+      <p data-field="description"></p>
+    </section>
+    <section class="detail-section">
+      <h3>匹配专家 ID</h3>
+      <div data-field="matched_expert_ids" class="tag-list"></div>
+    </section>
+    <section class="detail-section">
+      <h3>附件</h3>
+      <div data-field="attachments" class="tag-list"></div>
+    </section>
+    <form id="status-form" class="status-form">
+      <label for="detail-status">处理状态</label>
+      <select id="detail-status">
+        <option value="pending">待处理</option>
+        <option value="matching">匹配中</option>
+        <option value="contacted">已联系</option>
+        <option value="completed">已完成</option>
+        <option value="closed">已关闭</option>
+      </select>
+      <button id="save-status" type="submit">保存状态</button>
+      <p id="status-message" role="status"></p>
+    </form>
+  </template>
+
+  <script src="/admin-assets/admin.js"></script>
+</body>
+</html>

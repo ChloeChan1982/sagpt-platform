@@ -88,6 +88,24 @@ class DemandAdministrationTests(unittest.TestCase):
         for status in ("pending", "matching", "contacted", "completed", "closed"):
             self.assertIn(f'"{status}"', source)
 
+    def test_admin_dashboard_assets_and_route_exist(self):
+        root = Path(__file__).parents[1]
+        main_source = (root / "main.py").read_text(encoding="utf-8")
+        html = (root / "frontend" / "admin" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        script = (root / "frontend" / "admin" / "admin.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('@app.get("/admin/demands"', main_source)
+        self.assertIn("sessionStorage", script)
+        self.assertIn("X-API-Key", script)
+        self.assertIn("/api/demands/admin/list", script)
+        self.assertIn("/api/demands/admin/stats", script)
+        self.assertIn("/api/demands/admin/export.csv", script)
+        self.assertIn("需求管理", html)
+
 
 if __name__ == "__main__":
     unittest.main()

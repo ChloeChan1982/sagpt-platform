@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import uvicorn
 
 from app.core.config import get_settings, PROVIDER_PRESETS
@@ -24,6 +26,9 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
+admin_dir = Path(__file__).parent / "frontend" / "admin"
+app.mount("/admin-assets", StaticFiles(directory=admin_dir), name="admin-assets")
+
 # CORS - allow Readdy frontend
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
 app.add_middleware(
@@ -42,6 +47,11 @@ async def health_check():
         "service": settings.APP_NAME,
         "ai_available": True,
     }
+
+
+@app.get("/admin/demands", include_in_schema=False)
+async def demand_admin_dashboard():
+    return FileResponse(admin_dir / "index.html")
 
 # API routes
 app.include_router(auth.router, prefix="/api")
