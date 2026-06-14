@@ -69,6 +69,25 @@ class DemandAdministrationTests(unittest.TestCase):
         self.assertIn('@router.get("/admin/export.csv")', source)
         self.assertGreaterEqual(source.count("Depends(require_admin_api_key)"), 2)
 
+    def test_admin_status_update_contract_is_protected_and_validated(self):
+        source = (
+            Path(__file__).parents[1] / "app" / "routers" / "demands.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('@router.patch("/admin/{demand_id}/status")', source)
+        self.assertIn("Depends(require_admin_api_key)", source)
+        self.assertIn("SUPPORTED_DEMAND_STATUSES", source)
+        self.assertIn("Unsupported demand status", source)
+
+    def test_admin_stats_contract_is_protected_and_counts_operational_statuses(self):
+        source = (
+            Path(__file__).parents[1] / "app" / "routers" / "demands.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('@router.get("/admin/stats")', source)
+        for status in ("pending", "matching", "contacted", "completed", "closed"):
+            self.assertIn(f'"{status}"', source)
+
 
 if __name__ == "__main__":
     unittest.main()

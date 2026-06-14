@@ -55,6 +55,9 @@ class DemandSubmitResponse(BaseModel):
     estimated_match_time: str = "within 24 hours"
     preview_matches: List[MatchPreview] = Field(default_factory=list)
 
+class DemandStatusUpdate(BaseModel):
+    status: str
+
 # ========== Expert Schemas ==========
 class ExpertFilter(BaseModel):
     country: Optional[str] = None

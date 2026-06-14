@@ -17,6 +17,13 @@ from app.services.ai_service import get_llm_service, get_matching_service
 router = APIRouter(prefix="/demands", tags=["demands"])
 settings = get_settings()
 matching_tasks = set()
+SUPPORTED_DEMAND_STATUSES = {
+    "pending",
+    "matching",
+    "contacted",
+    "completed",
+    "closed",
+}
 
 
 def require_admin_api_key(x_api_key: Optional[str] = Header(default=None)):
@@ -161,6 +168,44 @@ async def export_demands_for_admin(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/admin/stats")
+async def get_admin_demand_stats(
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin_api_key),
+):
+    counts = {
+        status: db.query(func.count(Demand.id))
+        .filter(Demand.status == status)
+        .scalar()
+        or 0
+        for status in SUPPORTED_DEMAND_STATUSES
+    }
+    return {
+        "total": db.query(func.count(Demand.id)).scalar() or 0,
+        **counts,
+    }
+
+
+@router.patch("/admin/{demand_id}/status")
+async def update_demand_status_for_admin(
+    demand_id: uuid.UUID,
+    status_update: schemas.DemandStatusUpdate,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin_api_key),
+):
+    if status_update.status not in SUPPORTED_DEMAND_STATUSES:
+        raise HTTPException(status_code=422, detail="Unsupported demand status")
+
+    demand = db.query(Demand).filter(Demand.id == str(demand_id)).first()
+    if not demand:
+        raise HTTPException(status_code=404, detail="Demand not found")
+
+    demand.status = status_update.status
+    db.commit()
+    db.refresh(demand)
+    return demand_to_admin_dict(demand)
 
 
 @router.get("/{demand_id}", response_model=schemas.DemandResponse)
