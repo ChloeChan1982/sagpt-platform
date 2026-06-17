@@ -148,6 +148,15 @@ class TokenRequest(BaseModel):
 class ResetPasswordRequest(TokenRequest):
     password: str = Field(..., min_length=10, max_length=200)
 
+# ========== WeChat Mini Program Schemas ==========
+class MiniLoginRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=500)
+
+class MiniLoginResponse(BaseModel):
+    token: str
+    user_id: UUID
+    expires_at: datetime
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)

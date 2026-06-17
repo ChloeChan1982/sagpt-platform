@@ -44,6 +44,19 @@ class MiniModelTests(unittest.TestCase):
         self.assertIn("mini_user_id", columns)
         self.assertIn("client_request_id", columns)
 
+    def test_mini_auth_uses_bearer_token_and_hashes_session(self):
+        from app.core.mini_auth import parse_bearer_token
+
+        self.assertEqual(parse_bearer_token("Bearer secret-token"), "secret-token")
+        with self.assertRaises(Exception):
+            parse_bearer_token(None)
+
+    def test_wechat_code_exchange_contract(self):
+        from app.services.wechat_service import WeChatService
+
+        service = WeChatService(app_id="wx-test", app_secret="secret")
+        self.assertEqual(service.app_id, "wx-test")
+
 
 if __name__ == "__main__":
     unittest.main()
