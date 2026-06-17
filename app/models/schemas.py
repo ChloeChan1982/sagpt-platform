@@ -199,6 +199,13 @@ class MiniDemandImproveResponse(BaseModel):
     original: str
     suggestion: str
 
+class MiniPhoneBindRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=500)
+
+class MiniSubscriptionGrantRequest(BaseModel):
+    template_id: str = Field(..., min_length=1, max_length=255)
+    accepted: bool = True
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)

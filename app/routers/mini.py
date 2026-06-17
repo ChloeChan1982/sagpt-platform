@@ -13,7 +13,7 @@ from app.core.mini_files import (
 from app.core.mini_auth import create_mini_session, get_current_mini_user
 from app.db.database import get_db
 from app.models import schemas
-from app.models.models import Demand, DemandAttachment, MiniUser
+from app.models.models import Demand, DemandAttachment, MiniSubscriptionGrant, MiniUser
 from app.routers.demands import schedule_demand_matching
 from app.services.ai_service import get_llm_service
 from app.services.wechat_service import WeChatAPIError, WeChatService
@@ -61,6 +61,66 @@ async def mini_login(
 @router.get("/me")
 def mini_me(user: MiniUser = Depends(get_current_mini_user)):
     return {"user_id": user.id, "phone": user.phone}
+
+
+@router.post("/profile/phone")
+async def bind_mini_phone(
+    request: schemas.MiniPhoneBindRequest,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    service = WeChatService(
+        app_id=settings.WECHAT_APP_ID,
+        app_secret=settings.WECHAT_APP_SECRET,
+    )
+    try:
+        phone_info = await service.get_phone_number(request.code)
+    except WeChatAPIError as exc:
+        raise HTTPException(status_code=502, detail="WeChat phone binding failed") from exc
+
+    phone = phone_info.get("purePhoneNumber") or phone_info.get("phoneNumber")
+    if not phone:
+        raise HTTPException(status_code=502, detail="WeChat phone binding failed")
+
+    mini_user.phone = phone
+    db.commit()
+    db.refresh(mini_user)
+    return {"user_id": mini_user.id, "phone": mini_user.phone}
+
+
+@router.post("/subscriptions/grant")
+def grant_subscription_message(
+    grant: schemas.MiniSubscriptionGrantRequest,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    if not grant.accepted:
+        return {"granted": False}
+
+    existing = (
+        db.query(MiniSubscriptionGrant)
+        .filter(
+            MiniSubscriptionGrant.mini_user_id == mini_user.id,
+            MiniSubscriptionGrant.template_id == grant.template_id,
+        )
+        .first()
+    )
+    if existing:
+        existing.remaining_uses += 1
+    else:
+        existing = MiniSubscriptionGrant(
+            mini_user_id=mini_user.id,
+            template_id=grant.template_id,
+            remaining_uses=1,
+        )
+        db.add(existing)
+    db.commit()
+    return {
+        "granted": True,
+        "template_id": grant.template_id,
+        "remaining_uses": existing.remaining_uses,
+    }
 
 
 @router.post("/attachments")
