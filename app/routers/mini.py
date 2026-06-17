@@ -15,6 +15,7 @@ from app.db.database import get_db
 from app.models import schemas
 from app.models.models import Demand, DemandAttachment, MiniUser
 from app.routers.demands import schedule_demand_matching
+from app.services.ai_service import get_llm_service
 from app.services.wechat_service import WeChatAPIError, WeChatService
 
 
@@ -140,6 +141,20 @@ def download_attachment(
         path,
         media_type=attachment.content_type,
         filename=attachment.original_name,
+    )
+
+
+@router.post("/demands/improve")
+async def improve_mini_demand(
+    demand_data: schemas.MiniDemandImproveRequest,
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    del mini_user
+    llm = get_llm_service()
+    suggestion = await llm.improve_demand_description(demand_data.model_dump())
+    return schemas.MiniDemandImproveResponse(
+        original=demand_data.description,
+        suggestion=suggestion,
     )
 
 

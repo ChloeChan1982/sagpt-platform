@@ -188,6 +188,17 @@ class MiniDemandResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
+class MiniDemandImproveRequest(BaseModel):
+    target_country: str = Field(..., min_length=1, max_length=100)
+    industry: str = Field(..., min_length=1, max_length=100)
+    scenario: str = Field(..., min_length=1, max_length=100)
+    budget_range: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., min_length=10, max_length=2000)
+
+class MiniDemandImproveResponse(BaseModel):
+    original: str
+    suggestion: str
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)

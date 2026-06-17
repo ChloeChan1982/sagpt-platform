@@ -239,6 +239,42 @@ Reason:"""
         except Exception as e:
             return f"Expert in {expert_country} with expertise in {', '.join(expert_specialties[:2])}."
 
+    async def improve_demand_description(self, fields: dict) -> str:
+        original = (fields.get("description") or "").strip()
+        if not self.client or not original:
+            return original
+
+        prompt = f"""请基于以下企业出海需求，改写成一段清晰、具体、事实克制的中文需求描述，长度控制在100到500字。
+
+要求：
+- 不编造预算、国家、公司规模、政策、资质或监管事实。
+- 保留用户已经提供的目标国家、行业、场景、预算和紧急程度。
+- 语气专业，便于后台顾问判断服务范围。
+
+目标国家：{fields.get("target_country", "")}
+行业：{fields.get("industry", "")}
+场景：{fields.get("scenario", "")}
+预算：{fields.get("budget_range", "")}
+原始描述：{original}
+"""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是严谨的企业出海需求编辑，只优化表达，不新增事实。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=800,
+            )
+            suggestion = response.choices[0].message.content.strip()
+            return suggestion or original
+        except Exception:
+            return original
+
 class MatchingService:
     def __init__(self, llm_service: LLMService):
         self.llm = llm_service
