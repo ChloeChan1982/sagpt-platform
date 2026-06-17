@@ -1,9 +1,15 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.mini_files import (
+    safe_storage_path,
+    storage_name_for,
+    validate_attachment,
+)
 from app.core.mini_auth import create_mini_session, get_current_mini_user
 from app.db.database import get_db
 from app.models import schemas
@@ -54,6 +60,87 @@ async def mini_login(
 @router.get("/me")
 def mini_me(user: MiniUser = Depends(get_current_mini_user)):
     return {"user_id": user.id, "phone": user.phone}
+
+
+@router.post("/attachments")
+async def upload_attachment(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    original_name = file.filename or "attachment"
+    stored_name = storage_name_for(original_name)
+    path = safe_storage_path(settings.UPLOAD_DIR, stored_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    size_bytes = 0
+    try:
+        with path.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size_bytes += len(chunk)
+                if size_bytes > settings.MAX_ATTACHMENT_BYTES:
+                    raise ValueError("Attachment is too large")
+                output.write(chunk)
+
+        validate_attachment(
+            original_name,
+            file.content_type or "application/octet-stream",
+            size_bytes,
+        )
+        attachment = DemandAttachment(
+            mini_user_id=mini_user.id,
+            original_name=original_name,
+            stored_name=stored_name,
+            content_type=file.content_type or "application/octet-stream",
+            size_bytes=size_bytes,
+        )
+        db.add(attachment)
+        db.commit()
+        db.refresh(attachment)
+        return {
+            "attachment_id": attachment.id,
+            "original_name": attachment.original_name,
+            "size_bytes": attachment.size_bytes,
+        }
+    except ValueError as exc:
+        db.rollback()
+        if path.exists():
+            path.unlink()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        if path.exists():
+            path.unlink()
+        raise
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    attachment = (
+        db.query(DemandAttachment)
+        .filter(
+            DemandAttachment.id == str(attachment_id),
+            DemandAttachment.mini_user_id == mini_user.id,
+        )
+        .first()
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    path = safe_storage_path(settings.UPLOAD_DIR, attachment.stored_name)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+    return FileResponse(
+        path,
+        media_type=attachment.content_type,
+        filename=attachment.original_name,
+    )
 
 
 def _mini_demand_response(demand: Demand) -> schemas.MiniDemandResponse:
