@@ -25,6 +25,9 @@ class Demand(Base):
     ai_match_score = Column(Float, default=0.0)
     matched_expert_ids = Column(JSON, default=list)
     status = Column(String(50), default="pending", index=True)
+
+    mini_user_id = Column(String(36), index=True)
+    client_request_id = Column(String(100), unique=True, index=True)
     
     ip_address = Column(String(50))
     user_agent = Column(Text)
@@ -108,6 +111,47 @@ class UserSession(Base):
     token_hash = Column(String(64), nullable=False, unique=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     revoked_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class MiniUser(Base):
+    __tablename__ = "mini_users"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    openid = Column(String(128), nullable=False, unique=True, index=True)
+    unionid = Column(String(128), unique=True, index=True)
+    phone = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class MiniSession(Base):
+    __tablename__ = "mini_sessions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mini_user_id = Column(String(36), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class MiniSubscriptionGrant(Base):
+    __tablename__ = "mini_subscription_grants"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mini_user_id = Column(String(36), nullable=False, index=True)
+    template_id = Column(String(255), nullable=False, index=True)
+    remaining_uses = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class DemandAttachment(Base):
+    __tablename__ = "demand_attachments"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mini_user_id = Column(String(36), nullable=False, index=True)
+    demand_id = Column(String(36), index=True)
+    original_name = Column(String(255), nullable=False)
+    stored_name = Column(String(255), nullable=False, unique=True)
+    content_type = Column(String(150), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class AuthToken(Base):
