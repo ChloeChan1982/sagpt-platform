@@ -1,0 +1,16 @@
+.form {
+  margin-top: 28rpx;
+}
+
+.phone-button,
+.field button.secondary {
+  margin-top: 16rpx;
+}
+
+.attachment {
+  background: #f1f5f9;
+  border-radius: 10rpx;
+  color: #334155;
+  margin-top: 12rpx;
+  padding: 14rpx;
+}

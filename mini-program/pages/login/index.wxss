@@ -1,0 +1,7 @@
+.card {
+  margin-top: 180rpx;
+}
+
+button {
+  margin-top: 48rpx;
+}

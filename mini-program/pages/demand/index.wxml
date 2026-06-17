@@ -1,0 +1,69 @@
+<view class="page">
+  <view class="title">发布需求</view>
+  <view class="muted">提交后 SAGPT 团队会根据需求进行后台匹配和联系</view>
+
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+
+  <view class="card form">
+    <view class="field">
+      <text class="label">公司名称</text>
+      <input value="{{form.company_name}}" data-field="company_name" bindinput="onInput" placeholder="请输入公司名称" />
+    </view>
+
+    <view class="field">
+      <text class="label">目标国家</text>
+      <input value="{{form.target_country}}" data-field="target_country" bindinput="onInput" placeholder="例如：新加坡、卡塔尔、阿联酋" />
+    </view>
+
+    <view class="field">
+      <text class="label">行业</text>
+      <picker range="{{industries}}" bindchange="onIndustryChange">
+        <view>{{form.industry || "请选择行业"}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">场景</text>
+      <picker range="{{scenarios}}" bindchange="onScenarioChange">
+        <view>{{form.scenario || "请选择服务场景"}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">预算</text>
+      <picker range="{{budgets}}" bindchange="onBudgetChange">
+        <view>{{form.budget_range || "请选择预算范围"}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">需求描述</text>
+      <textarea value="{{form.description}}" data-field="description" bindinput="onInput" maxlength="2000" placeholder="请描述目标市场、希望解决的问题、服务时间要求等" />
+      <button class="secondary" loading="{{improving}}" bindtap="improveDescription">AI 优化描述</button>
+    </view>
+
+    <view class="field">
+      <text class="label">微信 / 手机号</text>
+      <input value="{{form.wechat_phone}}" data-field="wechat_phone" bindinput="onInput" placeholder="请输入微信号或手机号" />
+    </view>
+
+    <view class="field">
+      <text class="label">联系电话</text>
+      <input value="{{form.phone}}" data-field="phone" bindinput="onInput" placeholder="可填写手机号或带区号电话" />
+      <button class="secondary phone-button" open-type="getPhoneNumber" bindgetphonenumber="bindPhone">微信手机号授权</button>
+    </view>
+
+    <view class="field">
+      <text class="label">邮箱（选填）</text>
+      <input value="{{form.email}}" data-field="email" bindinput="onInput" placeholder="用于接收后续邮件" />
+    </view>
+
+    <view class="field">
+      <text class="label">附件（选填，最多3个）</text>
+      <button class="secondary" bindtap="chooseAttachment">选择附件</button>
+      <view wx:for="{{attachments}}" wx:key="attachment_id" class="attachment">{{item.original_name}}</view>
+    </view>
+
+    <button class="primary" loading="{{submitting}}" bindtap="submitDemand">提交需求</button>
+  </view>
+</view>

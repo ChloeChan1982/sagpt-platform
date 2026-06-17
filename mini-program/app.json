@@ -1,0 +1,29 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/demand/index",
+    "pages/demands/index",
+    "pages/demand-detail/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "SAGPT",
+    "navigationBarBackgroundColor": "#0f766e",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f7fafc"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/demand/index",
+        "text": "发布需求"
+      },
+      {
+        "pagePath": "pages/demands/index",
+        "text": "我的需求"
+      }
+    ]
+  }
+}

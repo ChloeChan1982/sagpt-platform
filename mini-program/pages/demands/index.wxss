@@ -1,0 +1,18 @@
+.item {
+  margin-bottom: 20rpx;
+}
+
+.item-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-bottom: 10rpx;
+}
+
+.status {
+  margin-top: 18rpx;
+}
+
+.empty {
+  margin-top: 120rpx;
+  text-align: center;
+}
