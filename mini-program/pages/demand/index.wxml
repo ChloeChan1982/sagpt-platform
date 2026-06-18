@@ -18,21 +18,21 @@
     <view class="field">
       <text class="label">行业</text>
       <picker range="{{industries}}" bindchange="onIndustryChange">
-        <view>{{form.industry || "请选择行业"}}</view>
+        <view class="picker-value">{{form.industry || "请选择行业"}}</view>
       </picker>
     </view>
 
     <view class="field">
-      <text class="label">场景</text>
+      <text class="label">服务场景</text>
       <picker range="{{scenarios}}" bindchange="onScenarioChange">
-        <view>{{form.scenario || "请选择服务场景"}}</view>
+        <view class="picker-value">{{form.scenario || "请选择服务场景"}}</view>
       </picker>
     </view>
 
     <view class="field">
-      <text class="label">预算</text>
+      <text class="label">预算范围</text>
       <picker range="{{budgets}}" bindchange="onBudgetChange">
-        <view>{{form.budget_range || "请选择预算范围"}}</view>
+        <view class="picker-value">{{form.budget_range || "请选择预算范围"}}</view>
       </picker>
     </view>
 
@@ -63,6 +63,14 @@
       <button class="secondary" bindtap="chooseAttachment">选择附件</button>
       <view wx:for="{{attachments}}" wx:key="attachment_id" class="attachment">{{item.original_name}}</view>
     </view>
+
+    <checkbox-group bindchange="onPrivacyChange">
+      <label class="privacy-row">
+        <checkbox value="accepted" checked="{{form.privacy_accepted}}" />
+        <text>我已阅读并同意</text>
+        <text class="privacy-link" bindtap="openPrivacy">隐私政策</text>
+      </label>
+    </checkbox-group>
 
     <button class="primary" loading="{{submitting}}" bindtap="submitDemand">提交需求</button>
   </view>

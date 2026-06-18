@@ -3,7 +3,8 @@
     "pages/login/index",
     "pages/demand/index",
     "pages/demands/index",
-    "pages/demand-detail/index"
+    "pages/demand-detail/index",
+    "pages/privacy/index"
   ],
   "window": {
     "navigationBarTitleText": "SAGPT",
