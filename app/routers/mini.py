@@ -1,0 +1,331 @@
+import uuid
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.core.mini_files import (
+    safe_storage_path,
+    storage_name_for,
+    validate_attachment,
+)
+from app.core.mini_auth import create_mini_session, get_current_mini_user
+from app.db.database import get_db
+from app.models import schemas
+from app.models.models import Demand, DemandAttachment, MiniSubscriptionGrant, MiniUser
+from app.routers.demands import schedule_demand_matching
+from app.services.ai_service import get_llm_service
+from app.services.wechat_service import WeChatAPIError, WeChatService
+
+
+router = APIRouter(prefix="/mini", tags=["mini"])
+
+
+@router.post("/auth/login", response_model=schemas.MiniLoginResponse)
+async def mini_login(
+    request: schemas.MiniLoginRequest,
+    db: Session = Depends(get_db),
+):
+    settings = get_settings()
+    service = WeChatService(
+        app_id=settings.WECHAT_APP_ID,
+        app_secret=settings.WECHAT_APP_SECRET,
+    )
+    try:
+        payload = await service.exchange_code(request.code)
+    except WeChatAPIError as exc:
+        raise HTTPException(status_code=502, detail="WeChat login failed") from exc
+
+    openid = payload.get("openid")
+    if not openid:
+        raise HTTPException(status_code=502, detail="WeChat login failed")
+
+    user = db.query(MiniUser).filter(MiniUser.openid == openid).first()
+    if not user:
+        user = MiniUser(openid=openid, unionid=payload.get("unionid"))
+        db.add(user)
+        db.flush()
+    elif payload.get("unionid") and not user.unionid:
+        user.unionid = payload["unionid"]
+
+    token, expires_at = create_mini_session(db, user.id)
+    db.commit()
+    return {
+        "token": token,
+        "user_id": user.id,
+        "expires_at": expires_at,
+    }
+
+
+@router.get("/me")
+def mini_me(user: MiniUser = Depends(get_current_mini_user)):
+    return {"user_id": user.id, "phone": user.phone}
+
+
+@router.post("/profile/phone")
+async def bind_mini_phone(
+    request: schemas.MiniPhoneBindRequest,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    service = WeChatService(
+        app_id=settings.WECHAT_APP_ID,
+        app_secret=settings.WECHAT_APP_SECRET,
+    )
+    try:
+        phone_info = await service.get_phone_number(request.code)
+    except WeChatAPIError as exc:
+        raise HTTPException(status_code=502, detail="WeChat phone binding failed") from exc
+
+    phone = phone_info.get("purePhoneNumber") or phone_info.get("phoneNumber")
+    if not phone:
+        raise HTTPException(status_code=502, detail="WeChat phone binding failed")
+
+    mini_user.phone = phone
+    db.commit()
+    db.refresh(mini_user)
+    return {"user_id": mini_user.id, "phone": mini_user.phone}
+
+
+@router.post("/subscriptions/grant")
+def grant_subscription_message(
+    grant: schemas.MiniSubscriptionGrantRequest,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    if not grant.accepted:
+        return {"granted": False}
+
+    existing = (
+        db.query(MiniSubscriptionGrant)
+        .filter(
+            MiniSubscriptionGrant.mini_user_id == mini_user.id,
+            MiniSubscriptionGrant.template_id == grant.template_id,
+        )
+        .first()
+    )
+    if existing:
+        existing.remaining_uses += 1
+    else:
+        existing = MiniSubscriptionGrant(
+            mini_user_id=mini_user.id,
+            template_id=grant.template_id,
+            remaining_uses=1,
+        )
+        db.add(existing)
+    db.commit()
+    return {
+        "granted": True,
+        "template_id": grant.template_id,
+        "remaining_uses": existing.remaining_uses,
+    }
+
+
+@router.post("/attachments")
+async def upload_attachment(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    original_name = file.filename or "attachment"
+    stored_name = storage_name_for(original_name)
+    path = safe_storage_path(settings.UPLOAD_DIR, stored_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    size_bytes = 0
+    try:
+        with path.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size_bytes += len(chunk)
+                if size_bytes > settings.MAX_ATTACHMENT_BYTES:
+                    raise ValueError("Attachment is too large")
+                output.write(chunk)
+
+        validate_attachment(
+            original_name,
+            file.content_type or "application/octet-stream",
+            size_bytes,
+        )
+        attachment = DemandAttachment(
+            mini_user_id=mini_user.id,
+            original_name=original_name,
+            stored_name=stored_name,
+            content_type=file.content_type or "application/octet-stream",
+            size_bytes=size_bytes,
+        )
+        db.add(attachment)
+        db.commit()
+        db.refresh(attachment)
+        return {
+            "attachment_id": attachment.id,
+            "original_name": attachment.original_name,
+            "size_bytes": attachment.size_bytes,
+        }
+    except ValueError as exc:
+        db.rollback()
+        if path.exists():
+            path.unlink()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        if path.exists():
+            path.unlink()
+        raise
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    settings = get_settings()
+    attachment = (
+        db.query(DemandAttachment)
+        .filter(
+            DemandAttachment.id == str(attachment_id),
+            DemandAttachment.mini_user_id == mini_user.id,
+        )
+        .first()
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    path = safe_storage_path(settings.UPLOAD_DIR, attachment.stored_name)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+    return FileResponse(
+        path,
+        media_type=attachment.content_type,
+        filename=attachment.original_name,
+    )
+
+
+@router.post("/demands/improve")
+async def improve_mini_demand(
+    demand_data: schemas.MiniDemandImproveRequest,
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    del mini_user
+    llm = get_llm_service()
+    suggestion = await llm.improve_demand_description(demand_data.model_dump())
+    return schemas.MiniDemandImproveResponse(
+        original=demand_data.description,
+        suggestion=suggestion,
+    )
+
+
+def _mini_demand_response(demand: Demand) -> schemas.MiniDemandResponse:
+    attachment_ids = demand.attachments or []
+    return schemas.MiniDemandResponse(
+        id=demand.id,
+        target_country=demand.target_country,
+        industry=demand.industry,
+        scenario=demand.scenario,
+        budget_range=demand.budget_range,
+        urgency=demand.urgency,
+        description=demand.description,
+        company_name=demand.company_name or "",
+        wechat_phone=demand.wechat_phone or "",
+        phone=demand.phone or "",
+        email=demand.email or None,
+        status=demand.status,
+        attachment_ids=attachment_ids,
+        created_at=demand.created_at,
+        updated_at=demand.updated_at,
+    )
+
+
+@router.post("/demands")
+async def create_mini_demand(
+    request: Request,
+    demand_data: schemas.MiniDemandCreate,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    existing = (
+        db.query(Demand)
+        .filter(Demand.client_request_id == demand_data.client_request_id)
+        .first()
+    )
+    if existing:
+        if existing.mini_user_id != mini_user.id:
+            raise HTTPException(status_code=409, detail="Duplicate request id")
+        return _mini_demand_response(existing)
+
+    attachment_ids = [str(attachment_id) for attachment_id in demand_data.attachment_ids]
+    if attachment_ids:
+        attachments = (
+            db.query(DemandAttachment)
+            .filter(
+                DemandAttachment.id.in_(attachment_ids),
+                DemandAttachment.mini_user_id == mini_user.id,
+                DemandAttachment.demand_id.is_(None),
+            )
+            .all()
+        )
+        if len(attachments) != len(attachment_ids):
+            raise HTTPException(status_code=400, detail="Invalid attachment")
+    else:
+        attachments = []
+
+    demand = Demand(
+        mini_user_id=mini_user.id,
+        client_request_id=demand_data.client_request_id,
+        target_country=demand_data.target_country,
+        industry=demand_data.industry,
+        scenario=demand_data.scenario,
+        budget_range=demand_data.budget_range,
+        urgency=demand_data.urgency,
+        description=demand_data.description,
+        email=str(demand_data.email) if demand_data.email else "",
+        wechat_phone=demand_data.wechat_phone,
+        company_name=demand_data.company_name,
+        phone=demand_data.phone,
+        attachments=attachment_ids,
+        status="pending",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(demand)
+    db.flush()
+    for attachment in attachments:
+        attachment.demand_id = demand.id
+    db.commit()
+    db.refresh(demand)
+
+    schedule_demand_matching(str(demand.id))
+    return _mini_demand_response(demand)
+
+
+@router.get("/demands")
+def list_mini_demands(
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    demands = (
+        db.query(Demand)
+        .filter(Demand.mini_user_id == mini_user.id)
+        .order_by(Demand.created_at.desc())
+        .all()
+    )
+    return [_mini_demand_response(demand) for demand in demands]
+
+
+@router.get("/demands/{demand_id}")
+def get_mini_demand(
+    demand_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    mini_user: MiniUser = Depends(get_current_mini_user),
+):
+    demand = (
+        db.query(Demand)
+        .filter(Demand.id == str(demand_id), Demand.mini_user_id == mini_user.id)
+        .first()
+    )
+    if not demand:
+        raise HTTPException(status_code=404, detail="Demand not found")
+    return _mini_demand_response(demand)

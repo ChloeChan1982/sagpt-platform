@@ -1,0 +1,12 @@
+{
+  "appid": "touristappid",
+  "projectname": "SAGPT Demand Mini Program",
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  }
+}

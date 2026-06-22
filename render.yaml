@@ -3,7 +3,11 @@ services:
     name: sagpt-api
     runtime: docker
     dockerfilePath: ./Dockerfile.render
-    plan: free
+    plan: starter
+    disk:
+      name: sagpt-uploads
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -27,6 +31,8 @@ services:
         value: https://www.sagpt.com
       - key: API_BASE_URL
         value: https://api.sagpt.com
+      - key: UPLOAD_DIR
+        value: /var/data/sagpt-uploads
       - key: RESEND_API_KEY
         sync: false
       - key: AUTH_FROM_EMAIL

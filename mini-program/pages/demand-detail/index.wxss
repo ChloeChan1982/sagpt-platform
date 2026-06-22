@@ -1,0 +1,11 @@
+.section {
+  border-top: 1rpx solid #e2e8f0;
+  margin-top: 24rpx;
+  padding-top: 24rpx;
+}
+
+.section view:last-child {
+  font-size: 30rpx;
+  line-height: 1.6;
+  margin-top: 8rpx;
+}

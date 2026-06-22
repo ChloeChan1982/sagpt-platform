@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event, text as sa_text
+from sqlalchemy import create_engine, event, inspect, text as sa_text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import get_settings
@@ -28,10 +28,42 @@ def init_db():
                 print("[DB] pgvector not available, using JSON for embeddings")
         
         Base.metadata.create_all(bind=engine)
+        ensure_mini_schema(engine)
         print("[DB] Tables created successfully")
         _seed_experts_if_empty()
     except Exception as e:
         print(f"[DB] Init error: {e}")
+
+def ensure_mini_schema(target_engine=engine):
+    """Add mini-program columns to existing deployments.
+
+    SQLAlchemy create_all creates new tables but does not alter existing ones,
+    so old Render databases need these additive columns explicitly.
+    """
+    inspector = inspect(target_engine)
+    if "demands" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns("demands")
+    }
+
+    statements = []
+    if "mini_user_id" not in existing_columns:
+        statements.append("ALTER TABLE demands ADD COLUMN mini_user_id VARCHAR(36)")
+    if "client_request_id" not in existing_columns:
+        statements.append("ALTER TABLE demands ADD COLUMN client_request_id VARCHAR(100)")
+
+    statements.extend(
+        [
+            "CREATE INDEX IF NOT EXISTS ix_demands_mini_user_id ON demands (mini_user_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_demands_client_request_id ON demands (client_request_id)",
+        ]
+    )
+
+    with target_engine.begin() as conn:
+        for statement in statements:
+            conn.execute(sa_text(statement))
 
 def _seed_experts_if_empty():
     from app.models.models import Expert

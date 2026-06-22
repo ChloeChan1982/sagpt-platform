@@ -11,8 +11,9 @@ from app.core.config import get_settings
 from app.core.demands import build_demand_csv, demand_to_admin_dict, is_admin_api_key_valid
 from app.db.database import get_db, SessionLocal
 from app.models import schemas
-from app.models.models import Demand
+from app.models.models import Demand, MiniSubscriptionGrant, MiniUser
 from app.services.ai_service import get_llm_service, get_matching_service
+from app.services.wechat_service import WeChatAPIError, WeChatService
 
 router = APIRouter(prefix="/demands", tags=["demands"])
 settings = get_settings()
@@ -24,6 +25,7 @@ SUPPORTED_DEMAND_STATUSES = {
     "completed",
     "closed",
 }
+NOTIFIABLE_DEMAND_STATUSES = {"contacted", "completed"}
 
 
 def require_admin_api_key(x_api_key: Optional[str] = Header(default=None)):
@@ -87,6 +89,59 @@ def apply_demand_filters(query, status=None, country=None, search=None):
             )
         )
     return query
+
+
+def _template_id_for_status(status: str) -> str:
+    if status == "contacted":
+        return settings.WECHAT_CONTACTED_TEMPLATE_ID
+    if status == "completed":
+        return settings.WECHAT_COMPLETED_TEMPLATE_ID
+    return ""
+
+
+async def send_demand_status_notification(db: Session, demand: Demand):
+    if demand.status not in NOTIFIABLE_DEMAND_STATUSES or not demand.mini_user_id:
+        return
+
+    template_id = _template_id_for_status(demand.status)
+    if not template_id:
+        return
+
+    mini_user = db.query(MiniUser).filter(MiniUser.id == demand.mini_user_id).first()
+    if not mini_user:
+        return
+
+    grant = (
+        db.query(MiniSubscriptionGrant)
+        .filter(
+            MiniSubscriptionGrant.mini_user_id == mini_user.id,
+            MiniSubscriptionGrant.template_id == template_id,
+            MiniSubscriptionGrant.remaining_uses > 0,
+        )
+        .first()
+    )
+    if not grant:
+        return
+
+    service = WeChatService(
+        app_id=settings.WECHAT_APP_ID,
+        app_secret=settings.WECHAT_APP_SECRET,
+    )
+    status_label = "已联系" if demand.status == "contacted" else "已完成"
+    await service.send_subscription_message(
+        openid=mini_user.openid,
+        template_id=template_id,
+        page=f"pages/demands/detail?id={demand.id}",
+        data={
+            "thing1": {"value": (demand.company_name or "您的需求")[:20]},
+            "phrase2": {"value": status_label},
+            "thing3": {"value": (demand.target_country or "目标国家")[:20]},
+        },
+    )
+    grant.remaining_uses -= 1
+    if grant.remaining_uses <= 0:
+        db.delete(grant)
+    db.commit()
 
 @router.post("/submit", response_model=schemas.DemandSubmitResponse)
 async def submit_demand(
@@ -205,6 +260,15 @@ async def update_demand_status_for_admin(
     demand.status = status_update.status
     db.commit()
     db.refresh(demand)
+    if status_update.status in NOTIFIABLE_DEMAND_STATUSES:
+        try:
+            await send_demand_status_notification(db, demand)
+        except WeChatAPIError as exc:
+            db.rollback()
+            print(
+                f"WeChat demand notification failed for {demand.id}: "
+                f"{type(exc).__name__}: {exc}"
+            )
     return demand_to_admin_dict(demand)
 
 

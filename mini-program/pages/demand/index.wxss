@@ -1,0 +1,34 @@
+.form {
+  margin-top: 28rpx;
+}
+
+.picker-value {
+  min-height: 48rpx;
+}
+
+.phone-button,
+.field button.secondary {
+  margin-top: 16rpx;
+}
+
+.attachment {
+  background: #f1f5f9;
+  border-radius: 10rpx;
+  color: #334155;
+  margin-top: 12rpx;
+  padding: 14rpx;
+}
+
+.privacy-row {
+  align-items: center;
+  color: #475569;
+  display: flex;
+  font-size: 26rpx;
+  gap: 8rpx;
+  margin: 24rpx 0;
+}
+
+.privacy-link {
+  color: #0f766e;
+  font-weight: 700;
+}

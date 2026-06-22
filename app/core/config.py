@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     MATCH_TOP_K: int = 5
     MATCH_MIN_SCORE: float = 0.6
 
+    # WeChat Mini Program
+    WECHAT_APP_ID: str = os.getenv("WECHAT_APP_ID", "")
+    WECHAT_APP_SECRET: str = os.getenv("WECHAT_APP_SECRET", "")
+    WECHAT_CONTACTED_TEMPLATE_ID: str = os.getenv("WECHAT_CONTACTED_TEMPLATE_ID", "")
+    WECHAT_COMPLETED_TEMPLATE_ID: str = os.getenv("WECHAT_COMPLETED_TEMPLATE_ID", "")
+    MINI_SESSION_DAYS: int = int(os.getenv("MINI_SESSION_DAYS", "30"))
+
+    # Attachment Storage
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
+    MAX_ATTACHMENT_BYTES: int = 20 * 1024 * 1024
+    MAX_ATTACHMENTS_PER_DEMAND: int = 3
+
 @lru_cache()
 def get_settings():
     return Settings()

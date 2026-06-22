@@ -148,6 +148,64 @@ class TokenRequest(BaseModel):
 class ResetPasswordRequest(TokenRequest):
     password: str = Field(..., min_length=10, max_length=200)
 
+# ========== WeChat Mini Program Schemas ==========
+class MiniLoginRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=500)
+
+class MiniLoginResponse(BaseModel):
+    token: str
+    user_id: UUID
+    expires_at: datetime
+
+class MiniDemandCreate(BaseModel):
+    client_request_id: str = Field(..., min_length=8, max_length=100)
+    target_country: str = Field(..., min_length=1, max_length=100)
+    industry: str = Field(..., min_length=1, max_length=100)
+    scenario: str = Field(..., min_length=1, max_length=100)
+    budget_range: str = Field(..., min_length=1, max_length=100)
+    urgency: str = Field(default="normal", pattern="^(normal|urgent)$")
+    description: str = Field(..., min_length=10, max_length=2000)
+    company_name: str = Field(..., min_length=1, max_length=200)
+    wechat_phone: str = Field(..., min_length=1, max_length=100)
+    phone: str = Field(..., min_length=5, max_length=50)
+    email: Optional[EmailStr] = None
+    attachment_ids: List[UUID] = Field(default_factory=list, max_length=3)
+
+class MiniDemandResponse(BaseModel):
+    id: UUID
+    target_country: str
+    industry: str
+    scenario: str
+    budget_range: str
+    urgency: str
+    description: str
+    company_name: str
+    wechat_phone: str
+    phone: str
+    email: Optional[str]
+    status: str
+    attachment_ids: List[UUID]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+class MiniDemandImproveRequest(BaseModel):
+    target_country: str = Field(..., min_length=1, max_length=100)
+    industry: str = Field(..., min_length=1, max_length=100)
+    scenario: str = Field(..., min_length=1, max_length=100)
+    budget_range: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., min_length=10, max_length=2000)
+
+class MiniDemandImproveResponse(BaseModel):
+    original: str
+    suggestion: str
+
+class MiniPhoneBindRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=500)
+
+class MiniSubscriptionGrantRequest(BaseModel):
+    template_id: str = Field(..., min_length=1, max_length=255)
+    accepted: bool = True
+
 # ========== Provider Application Schemas ==========
 class ProviderApplyRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
