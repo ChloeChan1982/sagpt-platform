@@ -148,6 +148,68 @@ function renderTags(container, values, emptyText) {
   }));
 }
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(Number(bytes)) || Number(bytes) <= 0) return "";
+  const value = Number(bytes);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function filenameFromDisposition(disposition) {
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition || "");
+  if (utf8Match) return decodeURIComponent(utf8Match[1]);
+  const asciiMatch = /filename="?([^";]+)"?/i.exec(disposition || "");
+  return asciiMatch?.[1] || "";
+}
+
+async function downloadAttachment(attachment) {
+  const url = attachment.download_url || `/api/demands/admin/attachments/${attachment.id}`;
+  const response = await apiFetch(url);
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download =
+    filenameFromDisposition(response.headers.get("content-disposition")) ||
+    attachment.original_name ||
+    attachment.id ||
+    "sagpt-attachment";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function renderAttachments(container, demand) {
+  const details = Array.isArray(demand.attachment_details)
+    ? demand.attachment_details
+    : [];
+  const items = details.length
+    ? details
+    : (Array.isArray(demand.attachments) ? demand.attachments : []).map((id) => ({ id }));
+  if (!items.length) {
+    renderTags(container, [], "暂无附件");
+    return;
+  }
+  container.replaceChildren(...items.map((attachment) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag";
+    const name = attachment.original_name || attachment.id;
+    const size = formatFileSize(attachment.size_bytes);
+    button.textContent = size ? `${name} (${size})` : name;
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await downloadAttachment(attachment);
+      } catch (error) {
+        el("page-error").textContent = error.message;
+        el("page-error").classList.remove("hidden");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    return button;
+  }));
+}
 function openDetail(demand) {
   state.selected = demand;
   renderRows();
@@ -170,7 +232,7 @@ function openDetail(demand) {
     ["需求 ID", demand.id],
   ].forEach(([label, value]) => addDetailPair(grid, label, value));
   renderTags(fragment.querySelector('[data-field="matched_expert_ids"]'), demand.matched_expert_ids, "暂无匹配专家");
-  renderTags(fragment.querySelector('[data-field="attachments"]'), demand.attachments, "暂无附件");
+  renderAttachments(fragment.querySelector('[data-field="attachments"]'), demand);
   fragment.querySelector("#detail-status").value = demand.status;
   fragment.querySelector('[data-action="close"]').addEventListener("click", closeDetail);
   fragment.querySelector("#status-form").addEventListener("submit", updateStatus);
