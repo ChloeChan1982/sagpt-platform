@@ -39,7 +39,27 @@ def is_admin_api_key_valid(provided_key, expected_key):
     return secrets.compare_digest(provided_key, expected_key)
 
 
-def demand_to_admin_dict(demand):
+def _attachment_detail(attachment_id, attachments_by_id):
+    detail = {
+        "id": str(attachment_id),
+        "original_name": str(attachment_id),
+        "size_bytes": None,
+        "content_type": None,
+        "download_url": f"/api/demands/admin/attachments/{attachment_id}",
+    }
+    attachment = (attachments_by_id or {}).get(str(attachment_id))
+    if attachment:
+        detail.update(
+            {
+                "original_name": getattr(attachment, "original_name", str(attachment_id)),
+                "size_bytes": getattr(attachment, "size_bytes", None),
+                "content_type": getattr(attachment, "content_type", None),
+            }
+        )
+    return detail
+
+
+def demand_to_admin_dict(demand, attachments_by_id=None):
     result = {}
     for field in CSV_FIELDS:
         value = getattr(demand, field, None)
@@ -48,15 +68,19 @@ def demand_to_admin_dict(demand):
         elif value is not None and not isinstance(value, (str, int, float, bool)):
             value = str(value)
         result[field] = value
+    result["attachment_details"] = [
+        _attachment_detail(attachment_id, attachments_by_id)
+        for attachment_id in result["attachments"]
+    ]
     return result
-
 
 def build_demand_csv(demands):
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=CSV_FIELDS)
     writer.writeheader()
     for demand in demands:
-        row = demand_to_admin_dict(demand)
+        demand_dict = demand_to_admin_dict(demand)
+        row = {field: demand_dict.get(field) for field in CSV_FIELDS}
         row["attachments"] = json.dumps(row["attachments"], ensure_ascii=False)
         row["matched_expert_ids"] = json.dumps(
             row["matched_expert_ids"], ensure_ascii=False

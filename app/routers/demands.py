@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List, Optional
@@ -9,9 +9,10 @@ from datetime import datetime, timezone
 
 from app.core.config import get_settings
 from app.core.demands import build_demand_csv, demand_to_admin_dict, is_admin_api_key_valid
+from app.core.mini_files import safe_storage_path
 from app.db.database import get_db, SessionLocal
 from app.models import schemas
-from app.models.models import Demand, MiniSubscriptionGrant, MiniUser
+from app.models.models import Demand, DemandAttachment, MiniSubscriptionGrant, MiniUser
 from app.services.ai_service import get_llm_service, get_matching_service
 from app.services.wechat_service import WeChatAPIError, WeChatService
 
@@ -90,6 +91,21 @@ def apply_demand_filters(query, status=None, country=None, search=None):
         )
     return query
 
+
+def _attachment_lookup_for_demands(db: Session, demands):
+    attachment_ids = {
+        str(attachment_id)
+        for demand in demands
+        for attachment_id in (demand.attachments or [])
+    }
+    if not attachment_ids:
+        return {}
+    attachments = (
+        db.query(DemandAttachment)
+        .filter(DemandAttachment.id.in_(attachment_ids))
+        .all()
+    )
+    return {attachment.id: attachment for attachment in attachments}
 
 def _template_id_for_status(status: str) -> str:
     if status == "contacted":
@@ -199,11 +215,15 @@ async def list_demands_for_admin(
         .limit(page_size)
         .all()
     )
+    attachments_by_id = _attachment_lookup_for_demands(db, demands)
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "demands": [demand_to_admin_dict(demand) for demand in demands],
+        "demands": [
+            demand_to_admin_dict(demand, attachments_by_id=attachments_by_id)
+            for demand in demands
+        ],
     }
 
 
@@ -269,8 +289,34 @@ async def update_demand_status_for_admin(
                 f"WeChat demand notification failed for {demand.id}: "
                 f"{type(exc).__name__}: {exc}"
             )
-    return demand_to_admin_dict(demand)
+    attachments_by_id = _attachment_lookup_for_demands(db, [demand])
+    return demand_to_admin_dict(demand, attachments_by_id=attachments_by_id)
 
+
+@router.get("/admin/attachments/{attachment_id}")
+async def download_admin_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin_api_key),
+):
+    attachment = (
+        db.query(DemandAttachment)
+        .filter(DemandAttachment.id == str(attachment_id))
+        .first()
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    try:
+        path = safe_storage_path(settings.UPLOAD_DIR, attachment.stored_name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+    return FileResponse(
+        path,
+        media_type=attachment.content_type,
+        filename=attachment.original_name,
+    )
 
 @router.get("/{demand_id}", response_model=schemas.DemandResponse)
 async def get_demand(demand_id: uuid.UUID, db: Session = Depends(get_db)):
