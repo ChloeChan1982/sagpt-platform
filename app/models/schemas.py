@@ -225,6 +225,10 @@ class ProviderApplicationResponse(BaseModel):
     
     class Config:
         from_attributes = True
+class ProviderStatusUpdate(BaseModel):
+    status: str
+    reviewed_by: Optional[str] = Field(default=None, max_length=200)
+    review_notes: Optional[str] = Field(default=None, max_length=1000)
 
 # ========== AI Matching Schemas ==========
 class MatchRequest(BaseModel):

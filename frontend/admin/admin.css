@@ -13,14 +13,14 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { border: 1px solid var(--teal); background: var(--teal); color: white; cursor: pointer; min-height: 40px; padding: 0 16px; }
 button:hover { background: var(--teal-dark); }
 button:disabled { cursor: wait; opacity: .55; }
 button.secondary { border-color: var(--border); background: white; color: #34424d; }
 button.secondary:hover { background: #eef2f3; }
-input, select { min-height: 40px; border: 1px solid var(--border); background: white; padding: 0 12px; color: #182230; }
-input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(8, 127, 117, .18); outline-offset: 1px; }
+input, select, textarea { min-height: 40px; border: 1px solid var(--border); background: white; padding: 0 12px; color: #182230; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px solid rgba(8, 127, 117, .18); outline-offset: 1px; }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
 .eyebrow { margin: 0 0 3px; color: var(--teal); font-size: 12px; font-weight: 700; text-transform: uppercase; }
@@ -55,9 +55,12 @@ td { padding: 12px; border-top: 1px solid #edf0f1; }
 tbody tr { cursor: pointer; }
 tbody tr:hover, tbody tr.selected { background: #eef8f7; }
 .status-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; background: #edf1f2; color: #44515a; font-size: 12px; font-weight: 650; }
+.status-pending { background: #edf1f2; color: #44515a; }
 .status-matching { background: #e8f1ff; color: #175cd3; }
 .status-contacted { background: #fff4e5; color: #b54708; }
+.status-approved,
 .status-completed { background: #eaf8ef; color: #067647; }
+.status-rejected { background: #fff1f0; color: #b42318; }
 .status-closed { background: #f1f1f3; color: #475467; }
 .empty-state { padding: 60px 20px; color: var(--muted); text-align: center; }
 .pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid var(--border); color: var(--muted); }
@@ -79,6 +82,7 @@ tbody tr:hover, tbody tr.selected { background: #eef8f7; }
 .tag { max-width: 100%; padding: 4px 7px; background: #f0f3f4; color: #34424d; overflow-wrap: anywhere; }
 .status-form { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
 .status-form label { font-weight: 650; }
+.status-form textarea { resize: vertical; min-height: 90px; padding-top: 10px; }
 #status-message { min-height: 22px; margin: 0; color: var(--teal); }
 
 @media (max-width: 1180px) {

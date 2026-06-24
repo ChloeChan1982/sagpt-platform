@@ -53,6 +53,11 @@ async def health_check():
 async def demand_admin_dashboard():
     return FileResponse(admin_dir / "index.html")
 
+
+@app.get("/admin/providers", include_in_schema=False)
+async def provider_admin_dashboard():
+    return FileResponse(admin_dir / "providers.html")
+
 # API routes
 app.include_router(auth.router, prefix="/api")
 app.include_router(demands.router, prefix="/api")
