@@ -19,11 +19,11 @@
     "list": [
       {
         "pagePath": "pages/demand/index",
-        "text": "发布需求"
+        "text": "咨询登记"
       },
       {
         "pagePath": "pages/demands/index",
-        "text": "我的需求"
+        "text": "我的咨询记录"
       }
     ]
   }

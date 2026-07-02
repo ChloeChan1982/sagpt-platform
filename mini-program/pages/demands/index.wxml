@@ -1,10 +1,19 @@
 <view class="page">
-  <view class="title">我的需求</view>
-  <view wx:if="{{error}}" class="error">{{error}}</view>
-  <view wx:for="{{demands}}" wx:key="id" class="card item" bindtap="openDetail" data-id="{{item.id}}">
-    <view class="item-title">{{item.company_name}}</view>
-    <view class="muted">{{item.target_country}} · {{item.industry}} · {{item.scenario}}</view>
-    <view class="status">{{statusText[item.status] || item.status}}</view>
-  </view>
-  <view wx:if="{{!loading && demands.length === 0}}" class="muted empty">暂无需求</view>
+  <view class="title">我的咨询记录</view>
+  <view class="muted">查看已提交的企业出海咨询登记</view>
+
+  <view wx:if="{{loading}}" class="card muted">加载中...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:elif="{{demands.length === 0}}" class="empty">暂无咨询记录</view>
+
+  <block wx:for="{{demands}}" wx:key="id">
+    <view class="card list-item" data-id="{{item.id}}" bindtap="openDetail">
+      <view class="item-head">
+        <text class="company">{{item.company_name}}</text>
+        <text class="status">{{item.status_label}}</text>
+      </view>
+      <view class="muted">{{item.target_country}} ? {{item.industry}}</view>
+      <view class="desc">{{item.description}}</view>
+    </view>
+  </block>
 </view>

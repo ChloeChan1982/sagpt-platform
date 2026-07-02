@@ -1,27 +1,16 @@
 <view class="page">
-  <view wx:if="{{error}}" class="error">{{error}}</view>
-  <view wx:if="{{demand}}" class="card">
-    <view class="title">{{demand.company_name}}</view>
-    <view class="status">{{statusText[demand.status] || demand.status}}</view>
-    <view class="section">
-      <view class="muted">目标国家</view>
-      <view>{{demand.target_country}}</view>
+  <view wx:if="{{loading}}" class="card muted">加载中...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:elif="{{demand}}" class="card detail">
+    <view class="detail-header">
+      <view class="title">{{demand.company_name}}</view>
+      <view class="status">{{statusLabel}}</view>
     </view>
-    <view class="section">
-      <view class="muted">行业 / 场景</view>
-      <view>{{demand.industry}} · {{demand.scenario}}</view>
-    </view>
-    <view class="section">
-      <view class="muted">预算</view>
-      <view>{{demand.budget_range}}</view>
-    </view>
-    <view class="section">
-      <view class="muted">联系方式</view>
-      <view>{{demand.wechat_phone}} / {{demand.phone}}</view>
-    </view>
-    <view class="section">
-      <view class="muted">需求描述</view>
-      <view>{{demand.description}}</view>
-    </view>
+    <view class="row"><text>目标国家</text><text>{{demand.target_country}}</text></view>
+    <view class="row"><text>行业 / 场景</text><text>{{demand.industry}} / {{demand.scenario}}</text></view>
+    <view class="row"><text>预算</text><text>{{demand.budget_range}}</text></view>
+    <view class="row"><text>联系方式</text><text>{{demand.phone}} / {{demand.wechat_phone}}</text></view>
+    <view class="section-title">咨询事项说明</view>
+    <view class="paragraph">{{demand.description}}</view>
   </view>
 </view>
