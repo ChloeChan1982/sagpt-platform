@@ -20,13 +20,13 @@ Page({
           getApp().globalData.token = data.token;
           wx.switchTab({ url: "/pages/demand/index" });
         } catch (err) {
-          this.setData({ error: err.message || "登录失败" });
+          this.setData({ error: err.message || "\u5fae\u4fe1\u767b\u5f55\u5931\u8d25" });
         } finally {
           this.setData({ loading: false });
         }
       },
       fail: () => {
-        this.setData({ loading: false, error: "微信登录失败" });
+        this.setData({ loading: false, error: "\u5fae\u4fe1\u767b\u5f55\u5931\u8d25" });
       }
     });
   }

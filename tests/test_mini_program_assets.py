@@ -32,45 +32,64 @@ class MiniProgramAssetTests(unittest.TestCase):
 
     def test_mini_program_uses_consultation_registration_copy(self):
         root = Path(__file__).parents[1]
-        app_json = (root / "mini-program" / "app.json").read_text(encoding="utf-8")
-        demand_wxml = (
-            root / "mini-program" / "pages" / "demand" / "index.wxml"
-        ).read_text(encoding="utf-8")
+        files = [
+            root / "mini-program" / "app.json",
+            root / "mini-program" / "pages" / "login" / "index.wxml",
+            root / "mini-program" / "pages" / "login" / "index.js",
+            root / "mini-program" / "pages" / "demand" / "index.wxml",
+            root / "mini-program" / "pages" / "demand" / "index.js",
+            root / "mini-program" / "pages" / "privacy" / "index.wxml",
+            root / "mini-program" / "utils" / "api.js",
+            root / "mini-program" / "utils" / "config.js",
+        ]
+        combined = "\n".join(file.read_text(encoding="utf-8") for file in files)
+        for blocked in (
+            "\u53d1\u5e03\u9700\u6c42",
+            "\u63d0\u4ea4\u9700\u6c42",
+            "\u6211\u7684\u9700\u6c42",
+            "AI \u4f18\u5316\u63cf\u8ff0",
+            "AI\u4f18\u5316",
+            "\u9644\u4ef6",
+            "\u9009\u62e9\u9644\u4ef6",
+            "uploadAttachment",
+            "requestSubscribeMessage",
+            "contactedTemplateId",
+            "completedTemplateId",
+        ):
+            self.assertNotIn(blocked, combined)
+
+        for required in (
+            "\u54a8\u8be2\u767b\u8bb0",
+            "\u63d0\u4ea4\u54a8\u8be2",
+            "\u6211\u7684\u54a8\u8be2\u8bb0\u5f55",
+            "\u5fae\u4fe1\u767b\u5f55",
+        ):
+            self.assertIn(required, combined)
+
         demand_js = (
             root / "mini-program" / "pages" / "demand" / "index.js"
         ).read_text(encoding="utf-8")
-        privacy_wxml = (
-            root / "mini-program" / "pages" / "privacy" / "index.wxml"
-        ).read_text(encoding="utf-8")
-
-        combined = "\n".join([app_json, demand_wxml, demand_js, privacy_wxml])
-        for blocked in ("发布需求", "提交需求", "我的需求", "AI 优化描述", "附件"):
-            self.assertNotIn(blocked, combined)
-
-        self.assertIn("咨询登记", combined)
-        self.assertIn("提交咨询", combined)
-        self.assertIn("我的咨询记录", combined)
-        self.assertNotIn("uploadAttachment", demand_js)
         self.assertNotIn('url: "/demands/improve"', demand_js)
-        self.assertNotIn("requestSubscribeMessage", demand_js)
 
     def test_mini_program_text_is_readable_and_privacy_page_is_registered(self):
         root = Path(__file__).parents[1]
         files = [
             root / "mini-program" / "app.json",
+            root / "mini-program" / "pages" / "login" / "index.js",
+            root / "mini-program" / "pages" / "login" / "index.wxml",
             root / "mini-program" / "pages" / "demand" / "index.js",
             root / "mini-program" / "pages" / "demand" / "index.wxml",
             root / "mini-program" / "pages" / "privacy" / "index.wxml",
             root / "mini-program" / "pages" / "demands" / "index.wxml",
+            root / "mini-program" / "utils" / "api.js",
+            root / "mini-program" / "utils" / "config.js",
             root / "docs" / "wechat-mini-program-setup.md",
         ]
 
         for file in files:
             content = file.read_text(encoding="utf-8")
-            self.assertNotIn("锟", content, str(file))
-            self.assertNotIn("閸", content, str(file))
-            self.assertNotIn("闂", content, str(file))
-            self.assertNotIn("????", content, str(file))
+            for marker in ("\u9407", "\u6f76", "\u7f03", "\u95c4", "\u5bf0", "\u93c7", "\u5d32", "\u9599", "\u95c1", "\u95c2", "????"):
+                self.assertNotIn(marker, content, str(file))
 
         app_json = (root / "mini-program" / "app.json").read_text(encoding="utf-8")
         self.assertIn("pages/privacy/index", app_json)
@@ -89,7 +108,7 @@ class MiniProgramAssetTests(unittest.TestCase):
         self.assertIn("clearDraft", source)
         self.assertIn("client_request_id: form.client_request_id", source)
         self.assertIn("privacy_accepted", source)
-        self.assertIn("隐私政策", wxml)
+        self.assertIn("\u9690\u79c1\u653f\u7b56", wxml)
 
 
 if __name__ == "__main__":

@@ -19,40 +19,15 @@ function request({ url, method = "GET", data }) {
           resolve(res.data);
           return;
         }
-        reject(new Error((res.data && res.data.detail) || "请求失败"));
+        reject(new Error((res.data && res.data.detail) || "\u8bf7\u6c42\u5931\u8d25"));
       },
       fail() {
-        reject(new Error("网络连接失败"));
-      }
-    });
-  });
-}
-
-function uploadAttachment(filePath, name) {
-  return new Promise((resolve, reject) => {
-    wx.uploadFile({
-      url: `${config.apiBaseUrl}/attachments`,
-      filePath,
-      name: "file",
-      header: {
-        Authorization: `Bearer ${token()}`
-      },
-      formData: { name },
-      success(res) {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(JSON.parse(res.data));
-          return;
-        }
-        reject(new Error("附件上传失败"));
-      },
-      fail() {
-        reject(new Error("附件上传失败"));
+        reject(new Error("\u7f51\u7edc\u8fde\u63a5\u5931\u8d25"));
       }
     });
   });
 }
 
 module.exports = {
-  request,
-  uploadAttachment
+  request
 };
