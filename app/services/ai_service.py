@@ -14,9 +14,17 @@ except ImportError:
 
 # Provider presets
 PROVIDER_PRESETS = {
+    "zhipu": {
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "chat_model": "glm-4-flash",
+        "embedding_model": "embedding-2",
+        "free_model": "glm-4-flash",
+        "use_free_tier": True,
+        "api_key_env": "ZHIPU_API_KEY",
+    },
     "siliconflow": {
         "base_url": "https://api.siliconflow.cn/v1",
-        "chat_model": "Qwen/Qwen2.5-72B-Instruct",
+        "chat_model": "deepseek-ai/DeepSeek-V2.5",
         "embedding_model": "BAAI/bge-large-zh-v1.5",
         "free_model": "Qwen/Qwen2.5-7B-Instruct",
         "use_free_tier": True,
@@ -212,7 +220,7 @@ class LLMService:
                                      expert_name, expert_specialties, expert_country, expert_bio) -> str:
         if not self.client:
             return f"{expert_name} specializes in {', '.join(expert_specialties)} and operates in {expert_country}."
-        
+
         prompt = f"""Given this client demand and expert profile, write ONE concise sentence (max 20 words) explaining why this expert is a good match.
 
 Demand: {demand_description[:300]}
@@ -225,6 +233,7 @@ Specialties: {', '.join(expert_specialties)}
 Bio: {expert_bio[:200] if expert_bio else 'N/A'}
 
 Reason:"""
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -232,7 +241,8 @@ Reason:"""
                     {"role": "system", "content": "You write concise, professional match explanations."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.5, max_tokens=100
+                temperature=0.5,
+                max_tokens=100
             )
             reason = response.choices[0].message.content.strip().strip('"').strip("'")
             return reason
@@ -274,6 +284,402 @@ Reason:"""
             return suggestion or original
         except Exception:
             return original
+
+    # ============================================================================
+    # SPECIALIZED METHODS FOR AUTOMATION
+    # ============================================================================
+
+    async def score_advisor_lead(
+        self,
+        firm_name: str,
+        country: str,
+        category: str,
+        china_experience_evidence: str,
+        china_experience_years: int = 0,
+        has_china_desk: bool = False,
+        mandarin_speaking: bool = False,
+        chinese_content_available: bool = False
+    ) -> dict:
+        """
+        Score an advisor lead based on China experience (0-100 points).
+
+        Scoring criteria:
+        - China Desk/Practice: +20 points
+        - Mandarin-speaking: +15 points
+        - Chinese case study evidence: +25 points
+        - Chinese-language content: +10 points
+        - China experience years: +15 points (5+ years)
+        - Priority market: +10 points
+        - Public contact info: +10 points
+
+        Returns:
+            dict with total_score, status, and score breakdown
+        """
+        if not self.client:
+            return {"total_score": 0, "status": "error", "breakdown": {}}
+
+        prompt = f"""你是一个专业的B2B服务商评估专家。请根据以下信息评估这家服务提供商的"中国经验"得分。
+
+提供商信息：
+- 公司名称：{firm_name}
+- 所在国家：{country}
+- 服务类别：{category}
+- 中国经验描述：{china_experience_evidence}
+- 中国服务年限：{china_experience_years}年
+- 是否有中国团队/中国部：{'是' if has_china_desk else '否'}
+- 是否有中文服务人员：{'是' if mandarin_speaking else '否'}
+- 是否有中文网站/营销材料：{'是' if chinese_content_available else '否'}
+
+评分标准（总分100分）：
+1. 中国团队/中国部（20分）- 有专门的中国服务团队或部门
+2. 中文服务能力（15分）- 有中文服务人员
+3. 中国客户案例（25分）- 有中国客户案例研究、成功故事或证言
+4. 中文内容（10分）- 有中文网站、营销材料或客户资源
+5. 服务年限（15分）- 为中国公司服务年数（5年以上得满分）
+6. 目标市场（10分）- 所在国家是SAGPT的目标市场
+7. 公开联系方式（10分）- 有公开邮箱或LinkedIn
+
+请评估并返回JSON格式：
+{{
+    "total_score": 分数(0-100),
+    "status": "qualified"(>=70分) / "flagged"(50-69分) / "rejected"(<50分),
+    "breakdown": {{
+        "china_desk": 得分(0-20),
+        "mandarin_speaking": 得分(0-15),
+        "case_study": 得分(0-25),
+        "chinese_content": 得分(0-10),
+        "experience_years": 得分(0-15),
+        "priority_market": 得分(0-10),
+        "public_contact": 得分(0-10)
+    }},
+    "reasoning": "简要说明评分理由"
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是专业的B2B服务商评估专家，基于客观事实进行评分。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500
+            )
+            content = response.choices[0].message.content.strip()
+
+            # Parse JSON response
+            import json
+            try:
+                result = json.loads(content)
+                return result
+            except json.JSONDecodeError:
+                # If JSON parsing fails, extract score with regex
+                import re
+                score_match = re.search(r'"total_score":\s*(\d+)', content)
+                if score_match:
+                    score = int(score_match.group(1))
+                    status = "qualified" if score >= 70 else "flagged" if score >= 50 else "rejected"
+                    return {
+                        "total_score": score,
+                        "status": status,
+                        "breakdown": {},
+                        "reasoning": content
+                    }
+                return {"total_score": 0, "status": "error", "breakdown": {}}
+
+        except Exception as e:
+            print(f"[LLM] Advisor scoring error: {e}")
+            return {"total_score": 0, "status": "error", "breakdown": {}}
+
+    async def qualify_demand(
+        self,
+        company_name: str,
+        industry: str,
+        target_country: str,
+        description: str,
+        budget_range: str = "",
+        timeline: str = "",
+        company_size: str = "",
+        contact_email: str = "",
+        contact_phone: str = ""
+    ) -> dict:
+        """
+        Qualify a company demand lead (0-100 points).
+
+        Scoring criteria:
+        - Company legitimacy: +25 points (website, LinkedIn, business email)
+        - Project clarity: +20 points (detailed description, specific requirements)
+        - Urgency: +15 points (immediate to 6+ months)
+        - Budget range: +15 points (appropriate budget specified)
+        - Expansion stage: +15 points (active planning stage)
+        - Contact quality: +10 points (business email, phone, LinkedIn)
+
+        Returns:
+            dict with total_score, status, qualification_reasons, and key_requirements
+        """
+        if not self.client:
+            return {
+                "total_score": 0,
+                "status": "error",
+                "qualification_reasons": ["AI service unavailable"],
+                "key_requirements": []
+            }
+
+        prompt = f"""你是一个专业的B2B需求评估专家。请根据以下信息评估这家企业出海需求的"质量"得分。
+
+企业信息：
+- 公司名称：{company_name}
+- 所在行业：{industry}
+- 目标国家：{target_country}
+- 需求描述：{description}
+- 预算范围：{budget_range or '未提供'}
+- 预期时间：{timeline or '未提供'}
+- 公司规模：{company_size or '未提供'}
+- 联系邮箱：{contact_email}
+- 联系电话：{contact_phone or '未提供'}
+
+评分标准（总分100分）：
+1. 公司合法性（25分）- 公司网站、LinkedIn主页、企业邮箱等
+2. 项目清晰度（20分）- 需求描述详细、具体要求明确
+3. 紧急程度（15分）- 立即/1-3个月/3-6个月/6+个月
+4. 预算范围（15分）- 提供了合理的预算范围
+5. 扩张阶段（15分）- 处于积极规划/研究阶段
+6. 联系质量（10分）- 企业邮箱、电话、LinkedIn等
+
+请评估并返回JSON格式：
+{{
+    "total_score": 分数(0-100),
+    "status": "qualified"(>=60分) / "flagged"(40-59分) / "rejected"(<40分),
+    "qualification_reasons": ["评分理由1", "评分理由2", ...],
+    "key_requirements": ["关键需求1", "关键需求2", ...],
+    "flagged_issues": ["需要注意的问题1", ...],
+    "complexity_score": 复杂度评分(0-100)
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是专业的B2B需求评估专家，基于客观事实进行评分。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500
+            )
+            content = response.choices[0].message.content.strip()
+
+            import json
+            try:
+                result = json.loads(content)
+                return result
+            except json.JSONDecodeError:
+                # If JSON parsing fails, extract score with regex
+                import re
+                score_match = re.search(r'"total_score":\s*(\d+)', content)
+                if score_match:
+                    score = int(score_match.group(1))
+                    status = "qualified" if score >= 60 else "flagged" if score >= 40 else "rejected"
+                    return {
+                        "total_score": score,
+                        "status": status,
+                        "qualification_reasons": [content[:200]],
+                        "key_requirements": [],
+                        "flagged_issues": [],
+                        "complexity_score": score
+                    }
+                return {"total_score": 0, "status": "error", "qualification_reasons": [], "key_requirements": []}
+
+        except Exception as e:
+            print(f"[LLM] Demand qualification error: {e}")
+            return {
+                "total_score": 0,
+                "status": "error",
+                "qualification_reasons": ["AI service unavailable"],
+                "key_requirements": []
+            }
+
+    async def generate_personalized_email(
+        self,
+        recipient_name: str,
+        recipient_title: str,
+        firm_name: str,
+        recipient_email: str,
+        china_experience: str,
+        template_type: str = "warm_intro",
+        sender_name: str = "Chloe",
+        target_market: str = "",
+        category: str = "",
+        reason_for_fit: str = ""
+    ) -> dict:
+        """
+        Generate personalized outreach email for advisor.
+
+        Template types:
+        - warm_intro: First introduction email
+        - value_prop: Value proposition email
+        - urgency: Urgency/FOMO email
+        - breakup: Final break-up email
+        - response_handler: Thank you for response
+
+        Returns:
+            dict with subject_line and body_html
+        """
+        if not self.client:
+            return {
+                "subject_line": "Invitation to join SAGPT.COM",
+                "body_html": "<p>Hi,</p><p>I'd like to invite you to join SAGPT.COM.</p><p>Best regards,<br>Chloe</p>"
+            }
+
+        template_descriptions = {
+            "warm_intro": "First introduction email",
+            "value_prop": "Value proposition email with benefits",
+            "urgency": "Urgency/FOMO email with limited spots",
+            "breakup": "Gentle break-up email",
+            "response_handler": "Thank you for response email"
+        }
+
+        prompt = f"""你是SAGPT.COM的邮件撰写专家。请为以下顾问生成一封{template_descriptions.get(template_type, template_type)}。
+
+收件人信息：
+- 姓名：{recipient_name}
+- 职位：{recipient_title}
+- 公司：{firm_name}
+- 邮箱：{recipient_email}
+- 中国经验：{china_experience}
+- 目标市场：{target_market}
+- 服务类别：{category}
+- 适配理由：{reason_for_fit}
+
+发件人信息：
+- 姓名：{sender_name}
+- 公司：SAGPT.COM
+- 目的：邀请顾问加入SAGPT.COM平台
+
+邮件要求：
+1. 个性化：在开头提及对方的具体中国经验
+2. 专业性：语气专业但友好
+3. 简洁：控制在150-250字
+4. CTA：有明确的行动号召
+5. 格式：HTML格式，用<p>标签分段
+
+请返回JSON格式：
+{{
+    "subject_line": "邮件主题",
+    "body_html": "HTML格式的邮件正文"
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是专业的B2B邮件撰写专家，擅长个性化邮件写作。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            content = response.choices[0].message.content.strip()
+
+            import json
+            try:
+                result = json.loads(content)
+                return result
+            except json.JSONDecodeError:
+                # If JSON parsing fails, generate a default email
+                return {
+                    "subject_line": f"Invitation to join SAGPT.COM - {target_market} services",
+                    "body_html": f"<p>Hi {recipient_name},</p><p>I came across {firm_name}'s work helping Chinese companies expand to {target_country} — particularly your experience: {china_experience[:100]}...</p><p>I'm building sagpt.com, an AI-powered advisor marketplace connecting Chinese businesses with local experts. Your China experience makes you an ideal fit.</p><p>Would you be open to a 15-minute call to learn more?</p><p>Best regards,<br><strong>{sender_name}</strong><br>Founder, sagpt.com</p>"
+                }
+
+        except Exception as e:
+            print(f"[LLM] Email generation error: {e}")
+            return {
+                "subject_line": f"Invitation to join SAGPT.COM",
+                "body_html": f"<p>Hi {recipient_name},</p><p>I'd like to invite you to join SAGPT.COM.</p><p>Best regards,<br>{sender_name}</p>"
+            }
+
+    async def generate_match_summary(
+        self,
+        company_name: str,
+        industry: str,
+        target_country: str,
+        service_type: str,
+        requirements: str,
+        advisor_firm_name: str,
+        advisor_country: str,
+        advisor_service_type: str,
+        advisor_china_experience: str,
+        advisor_experience_years: int,
+        advisor_specialties: list,
+        advisor_has_china_desk: bool,
+        advisor_mandarin_speaking: bool
+    ) -> dict:
+        """
+        Generate personalized match summary for a company.
+
+        Returns:
+            dict with summary field
+        """
+        if not self.client:
+            return {
+                "summary": f"{advisor_firm_name} operates in {advisor_country} and specializes in {advisor_service_type}. With {advisor_experience_years} years of experience, they can help with {requirements[:100]}..."
+            }
+
+        specialties_str = ', '.join(advisor_specialties) if advisor_specialties else "general advisory"
+        china_team = "has a dedicated China team" if advisor_has_china_desk else "has experience with Chinese clients"
+        language_capability = "and speaks Mandarin" if advisor_mandarin_speaking else ""
+
+        prompt = f"""你是一个专业的商务分析师。请为中国企业生成一个个性化的顾问匹配说明。
+
+中国企业信息：
+- 公司名称：{company_name}
+- 所在行业：{industry}
+- 目标国家：{target_country}
+- 服务需求：{service_type}
+- 具体需求：{requirements}
+
+匹配顾问信息：
+- 公司名称：{advisor_firm_name}
+- 所在国家：{advisor_country}
+- 服务类型：{advisor_service_type}
+- 专业领域：{specialties_str}
+- 中国经验：{advisor_china_experience}
+- 服务年限：{advisor_experience_years}年
+- 中国团队：{china_team}
+- 语言能力：{language_capability}
+
+请生成一段150-200字的匹配说明，解释为什么这个顾问适合该企业的需求。请具体说明相关的经验和能力。
+
+请返回JSON格式：
+{{
+    "summary": "个性化匹配说明（150-200字）"
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是专业的商务分析师，擅长撰写匹配说明。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=400
+            )
+            content = response.choices[0].message.content.strip()
+
+            import json
+            try:
+                result = json.loads(content)
+                return result
+            except json.JSONDecodeError:
+                # If JSON parsing fails, return the content as summary
+                return {"summary": content}
+
+        except Exception as e:
+            print(f"[LLM] Match summary error: {e}")
+            return {
+                "summary": f"{advisor_firm_name} is a good fit for {company_name}'s {target_country} expansion needs. With {advisor_experience_years} years of experience serving Chinese companies, including {advisor_china_experience[:100]}..., they understand the unique challenges Chinese businesses face. Their {china_team} {language_capability} can provide culturally aligned support in both English and Mandarin."
+            }
 
 class MatchingService:
     def __init__(self, llm_service: LLMService):
